@@ -1,0 +1,1 @@
+ocv_add_application(jpubasic MODULES opencv_imgcodecs SRCS opencv_jpubasic.cpp)

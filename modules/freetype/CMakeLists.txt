@@ -1,0 +1,32 @@
+set(the_description "FreeType module. It enables to draw strings with outlines and mono-bitmaps/gray-bitmaps.")
+if(APPLE_FRAMEWORK)
+  ocv_module_disable(freetype)
+endif()
+
+if ("x${FREETYPE_INCLUDE_DIRS}" STREQUAL "x" OR "x${FREETYPE_LIBRARY}" STREQUAL "x")
+  include(FindFreetype)
+else()
+  set(FREETYPE_FOUND TRUE)
+endif()
+
+if(NOT FREETYPE_FOUND)
+  message(STATUS "freetype2:   NO")
+else()
+  message(STATUS "freetype2:   YES")
+endif()
+
+if(NOT HARFBUZZ_INCLUDE_DIRS)
+  message(STATUS "harfbuzz:    NO")
+else()
+  set(HARFBUZZ_FOUND TRUE)
+  message(STATUS "harfbuzz:    YES")
+endif()
+
+
+if( FREETYPE_FOUND AND HARFBUZZ_FOUND )
+  ocv_define_module(freetype opencv_core opencv_imgproc WRAP python)
+  ocv_target_link_libraries(${the_module} ${FREETYPE_LIBRARY})
+  ocv_include_directories( ${FREETYPE_INCLUDE_DIRS} ${HARFBUZZ_INCLUDE_DIRS} )
+else()
+  ocv_module_disable(freetype)
+endif()

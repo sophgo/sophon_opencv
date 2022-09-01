@@ -1,0 +1,1 @@
+ocv_add_application(vppcrop MODULES opencv_core opencv_videoio opencv_imgproc opencv_highgui SRCS vppcrop.cpp)

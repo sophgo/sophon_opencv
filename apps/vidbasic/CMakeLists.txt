@@ -1,0 +1,1 @@
+ocv_add_application(vidbasic MODULES opencv_videoio opencv_imgcodecs SRCS opencv_vidbasic.cpp)

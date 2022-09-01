@@ -1,0 +1,1 @@
+ocv_add_application(opencv_bmcv MODULES opencv_imgproc opencv_imgcodecs opencv_videoio SRCS opencv_bmcv.cpp)

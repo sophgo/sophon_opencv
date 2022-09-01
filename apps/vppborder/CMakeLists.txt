@@ -1,0 +1,1 @@
+ocv_add_application(vppborder MODULES opencv_core opencv_videoio opencv_imgproc opencv_highgui SRCS vppborder.cpp)
