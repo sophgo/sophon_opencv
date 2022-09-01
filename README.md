@@ -167,6 +167,7 @@ This project is licensed under the Apache License Version 2.0. Please refere to 
 
 	- xun.li  
 	- tao.han
+    - xin.guo
 	- yujing.shen
 	- yuyuan.yang
     - haotian.luo
