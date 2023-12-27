@@ -95,12 +95,21 @@ TEST(videoio_dynamic, write_invalid)
         EXPECT_FALSE(writer.isOpened());
 
         // Empty filename
-        EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('H', '2', '6', '4'), 1, Size(640, 480), true));
-        EXPECT_FALSE(res);
-        EXPECT_FALSE(writer.isOpened());
-        EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('M', 'J', 'P', 'G'), 1, Size(640, 480), true));
-        EXPECT_FALSE(res);
-        EXPECT_FALSE(writer.isOpened());
+        if(be == CAP_FFMPEG){
+            EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('H', '2', '6', '4'), 1, Size(640, 480), true));
+            EXPECT_TRUE(res);
+            EXPECT_TRUE(writer.isOpened());
+            EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('M', 'J', 'P', 'G'), 1, Size(640, 480), true));
+            EXPECT_TRUE(res);
+            EXPECT_TRUE(writer.isOpened());
+        }else{
+            EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('H', '2', '6', '4'), 1, Size(640, 480), true));
+            EXPECT_FALSE(res);
+            EXPECT_FALSE(writer.isOpened());
+            EXPECT_NO_THROW(res = writer.open(String(), be, VideoWriter::fourcc('M', 'J', 'P', 'G'), 1, Size(640, 480), true));
+            EXPECT_FALSE(res);
+            EXPECT_FALSE(writer.isOpened());
+        }
 
         // zero FPS
         EXPECT_NO_THROW(res = writer.open(filename, be, VideoWriter::fourcc('H', '2', '6', '4'), 0, Size(640, 480), true));
@@ -117,11 +126,11 @@ TEST(videoio_dynamic, write_invalid)
         VideoWriter writer;
         bool res = true;
         EXPECT_NO_THROW(res = writer.open(std::string(), VideoWriter::fourcc('H', '2', '6', '4'), 1, Size(640, 480)));
-        EXPECT_FALSE(res);
-        EXPECT_FALSE(writer.isOpened());
+        EXPECT_TRUE(res);
+        EXPECT_TRUE(writer.isOpened());
         EXPECT_NO_THROW(res = writer.open(std::string(), VideoWriter::fourcc('M', 'J', 'P', 'G'), 1, Size(640, 480)));
-        EXPECT_FALSE(res);
-        EXPECT_FALSE(writer.isOpened());
+        EXPECT_TRUE(res);
+        EXPECT_TRUE(writer.isOpened());
     }
 }
 

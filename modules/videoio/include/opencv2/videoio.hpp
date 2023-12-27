@@ -43,6 +43,9 @@
 #ifndef OPENCV_VIDEOIO_HPP
 #define OPENCV_VIDEOIO_HPP
 
+#define PROP_TRUE  1.0
+#define PROP_FALSE 0.0
+
 #include "opencv2/core.hpp"
 
 /**
@@ -211,6 +214,11 @@ enum VideoCaptureProperties {
        CAP_PROP_CODEC_EXTRADATA_INDEX = 68, //!< Positive index indicates that returning extra data is supported by the video back end.  This can be retrieved as cap.retrieve(data, <returned index>).  E.g. When reading from a h264 encoded RTSP stream, the FFmpeg backend could return the SPS and/or PPS if available (if sent in reply to a DESCRIBE request), from calls to cap.retrieve(data, <returned index>).
        CAP_PROP_FRAME_TYPE = 69, //!< (read-only) FFmpeg back-end only - Frame type ascii code (73 = 'I', 80 = 'P', 66 = 'B' or 63 = '?' if unknown) of the most recently read frame.
        CAP_PROP_N_THREADS = 70, //!< (**open-only**) Set the maximum number of threads to use. Use 0 to use as many threads as CPU cores (applicable for FFmpeg back-end only).
+       CAP_PROP_STATUS,
+       CAP_PROP_TIMESTAMP,
+       CAP_PROP_POS_PTS,
+       CV_FFMPEG_CAP_PROP_FRAME_WIDTH,
+       CV_FFMPEG_CAP_PROP_FRAME_HEIGHT,
 #ifndef CV_DOXYGEN
        CV__CAP_PROP_LATEST
 #endif
@@ -660,6 +668,10 @@ enum { CAP_PROP_IMAGES_BASE = 18000,
        CAP_PROP_IMAGES_LAST = 19000 // excluding
      };
 
+enum { CAP_PROP_OUTPUT_YUV = 20000,
+       CAP_PROP_OUTPUT_SRC = 20001
+     };
+
 //! @} Images
 
 /** @name OBSENSOR (for Orbbec 3D-Sensor device/module )
@@ -692,6 +704,42 @@ enum VideoCaptureOBSensorProperties{
 //! @} OBSENSOR
 
 //! @} videoio_flags_others
+
+typedef union {
+    struct {
+        int mb_force_mode;
+        int mb_qp;
+    }H264;
+
+    struct {
+        int ctu_force_mode;
+        int ctu_coeff_drop;
+
+        int sub_ctu_qp_0;
+        int sub_ctu_qp_1;
+        int sub_ctu_qp_2;
+        int sub_ctu_qp_3;
+
+        int lambda_sad_0;
+        int lambda_sad_1;
+        int lambda_sad_2;
+        int lambda_sad_3;
+    }HEVC;
+} RoiField;
+
+typedef struct CV_RoiInfo {
+    int numbers;
+    /* Enable ROI map. */
+    int customRoiMapEnable;
+    /* Enable custom lambda map. */
+    int customLambdaMapEnable;
+    /* Force CTU to be encoded with intra or to be skipped.  */
+    int customModeMapEnable;
+    /* Force all coefficients to be zero after TQ or not for each CTU (to be dropped).*/
+    int customCoefDropEnable;
+
+    RoiField *field;
+} CV_RoiInfo;
 
 
 class IVideoCapture;
@@ -742,7 +790,7 @@ public:
 
     @sa cv::VideoCaptureAPIs
     */
-    CV_WRAP explicit VideoCapture(const String& filename, int apiPreference = CAP_ANY);
+    CV_WRAP explicit VideoCapture(const String& filename, int apiPreference = CAP_ANY, int id = 0);
 
     /** @overload
     @brief Opens a video file or a capturing device or an IP video stream for video capturing with API Preference and parameters
@@ -750,7 +798,7 @@ public:
     The `params` parameter allows to specify extra parameters encoded as pairs `(paramId_1, paramValue_1, paramId_2, paramValue_2, ...)`.
     See cv::VideoCaptureProperties
     */
-    CV_WRAP explicit VideoCapture(const String& filename, int apiPreference, const std::vector<int>& params);
+    CV_WRAP explicit VideoCapture(const String& filename, int apiPreference, const std::vector<int>& paramsVideoCapture, int id = 0);
 
     /** @overload
     @brief  Opens a camera for video capturing
@@ -787,7 +835,7 @@ public:
 
     The method first calls VideoCapture::release to close the already opened file or camera.
      */
-    CV_WRAP virtual bool open(const String& filename, int apiPreference = CAP_ANY);
+    CV_WRAP virtual bool open(const String& filename, int apiPreference = CAP_ANY, int id = 0);
 
     /** @brief  Opens a video file or a capturing device or an IP video stream for video capturing with API Preference and parameters
 
@@ -800,7 +848,7 @@ public:
 
     The method first calls VideoCapture::release to close the already opened file or camera.
      */
-    CV_WRAP virtual bool open(const String& filename, int apiPreference, const std::vector<int>& params);
+    CV_WRAP virtual bool open(const String& filename, int apiPreference, const std::vector<int>& params, int id = 0);
 
     /** @brief  Opens a camera for video capturing
 
@@ -937,11 +985,35 @@ public:
     */
     CV_WRAP virtual double get(int propId) const;
 
+    /** @brief resampling output frame based on give rational
+
+     @overload, private interface by bitmain corp.
+     @return 'true' if the set resampler successfully, or return 'false' if not
+     */
+    CV_WRAP virtual bool set_resampler(int den, int num);
+
+    /** @brief get resampling rational parameter
+
+     @overload, private interface by bitmain corp.
+     @return 'true' if the get resampler successfully, or return 'false' if not
+     */
+    CV_WRAP virtual bool get_resampler(CV_OUT int *den, CV_OUT int *num);
+
     /** @brief Returns used backend API name
 
      @note Stream should be opened.
      */
     CV_WRAP String getBackendName() const;
+
+    /** @brief As an extension of the grab interface, it returns the pkt data.
+    @sa read()
+    */
+    virtual bool grab(char *buf, unsigned int len_in, unsigned int *len_out);
+
+    /** @brief As an extension of the read interface, it returns the pkt data and decode data.
+    @sa read()
+    */
+    virtual bool read_record(OutputArray image, char *buf, unsigned int len_in, unsigned int *len_out);
 
     /** Switches exceptions mode
      *
@@ -974,6 +1046,7 @@ public:
             int64 timeoutNs = 0);
 
 protected:
+    int card;
     Ptr<CvCapture> cap;
     Ptr<IVideoCapture> icap;
     bool throwOnFail;
@@ -1031,26 +1104,26 @@ public:
     - If FFMPEG is enabled, using `codec=0; fps=0;` you can create an uncompressed (raw) video file.
     */
     CV_WRAP VideoWriter(const String& filename, int fourcc, double fps,
-                Size frameSize, bool isColor = true);
+                Size frameSize, bool isColor = true, int id=0);
 
     /** @overload
     The `apiPreference` parameter allows to specify API backends to use. Can be used to enforce a specific reader implementation
     if multiple are available: e.g. cv::CAP_FFMPEG or cv::CAP_GSTREAMER.
      */
     CV_WRAP VideoWriter(const String& filename, int apiPreference, int fourcc, double fps,
-                Size frameSize, bool isColor = true);
+                Size frameSize, bool isColor = true, int id=0);
 
     /** @overload
      * The `params` parameter allows to specify extra encoder parameters encoded as pairs (paramId_1, paramValue_1, paramId_2, paramValue_2, ... .)
      * see cv::VideoWriterProperties
      */
     CV_WRAP VideoWriter(const String& filename, int fourcc, double fps, const Size& frameSize,
-                        const std::vector<int>& params);
+                        const std::vector<int>& params, int id = 0);
 
     /** @overload
      */
     CV_WRAP VideoWriter(const String& filename, int apiPreference, int fourcc, double fps,
-                        const Size& frameSize, const std::vector<int>& params);
+                        const Size& frameSize, const std::vector<int>& params, int id = 0);
 
     /** @brief Default destructor
 
@@ -1067,22 +1140,24 @@ public:
     The method first calls VideoWriter::release to close the already opened file.
      */
     CV_WRAP virtual bool open(const String& filename, int fourcc, double fps,
-                      Size frameSize, bool isColor = true);
+                      Size frameSize, bool isColor = true, int id=0);
+    CV_WRAP virtual bool open(const String& filename, int fourcc, double fps,
+                      Size frameSize, const String& encodeParams, bool isColor = true, int id=0);
 
     /** @overload
      */
     CV_WRAP bool open(const String& filename, int apiPreference, int fourcc, double fps,
-                      Size frameSize, bool isColor = true);
+                      Size frameSize, bool isColor = true, int id=0);
 
     /** @overload
      */
     CV_WRAP bool open(const String& filename, int fourcc, double fps, const Size& frameSize,
-                      const std::vector<int>& params);
+                      const std::vector<int>& params, int id = 0);
 
     /** @overload
      */
     CV_WRAP bool open(const String& filename, int apiPreference, int fourcc, double fps,
-                      const Size& frameSize, const std::vector<int>& params);
+                      const Size& frameSize, const std::vector<int>& params, int id = 0);
 
     /** @brief Returns true if video writer has been successfully initialized.
     */
@@ -1113,6 +1188,8 @@ public:
     been specified when opening the video writer.
      */
     CV_WRAP virtual void write(InputArray image);
+    CV_WRAP virtual void write(InputArray image, char *data, int *len);
+    virtual void write(InputArray image, char *data, int *len, CV_RoiInfo *roiinfo);
 
     /** @brief Sets a property in the VideoWriter.
 
@@ -1154,7 +1231,7 @@ protected:
     Ptr<IVideoWriter> iwriter;
 
     static Ptr<IVideoWriter> create(const String& filename, int fourcc, double fps,
-                                    Size frameSize, bool isColor = true);
+                                    Size frameSize, bool isColor = true, int id=0);
 };
 
 //! @cond IGNORED

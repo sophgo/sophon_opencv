@@ -215,7 +215,7 @@ class CvVideoWriter_AVFoundation : public CvVideoWriter {
 
 /****************** Implementation of interface functions ********************/
 
-cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_file(const std::string &filename)
+cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_file(const std::string &filename, int id)
 {
     CvCaptureFile *retval = new CvCaptureFile(filename.c_str());
     if(retval->didStart())
@@ -236,7 +236,8 @@ cv::Ptr<cv::IVideoCapture> cv::create_AVFoundation_capture_cam(int index)
 
 cv::Ptr<cv::IVideoWriter> cv::create_AVFoundation_writer(const std::string& filename, int fourcc,
                                                          double fps, const cv::Size& frameSize,
-                                                         const cv::VideoWriterParameters& params)
+                                                         const cv::VideoWriterParameters& params,
+                                                         int id)
 {
     CvSize sz = { frameSize.width, frameSize.height };
     const bool isColor = params.get(VIDEOWRITER_PROP_IS_COLOR, true);

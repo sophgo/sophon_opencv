@@ -1191,6 +1191,92 @@ void FarnebackOpticalFlowImpl::calc(InputArray _prev0, InputArray _next0,
 } // namespace
 } // namespace cv
 
+void cv::bmcpu_calcOpticalFlowFarneback( InputArray _prev0, InputArray _next0,
+                               InputOutputArray _flow0, double pyr_scale, int levels, int winsize,
+                               int iterations, int poly_n, double poly_sigma, int flags )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    Mat prev0, next0, flow0;
+    int prev0_flag = 0, next0_flag = 0, flow0_flag = 0;
+
+    prev0 = _prev0.getMat();
+    next0 = _next0.getMat();
+    flow0 = _flow0.getMat();
+
+    CV_Assert( prev0.size() == next0.size() && prev0.channels() == next0.channels() &&
+               prev0.channels() == 1 && pyr_scale < 1 );
+
+    int card = BM_CARD_ID(prev0.card);
+    if (card != BM_CARD_ID(next0.card)){
+        printf("device memory of two input images are not in same card. Not supported this case!\n");
+        return;
+    }
+
+    // If flag is set, check for integrity; if not set, allocate memory space
+    if( flags & OPTFLOW_USE_INITIAL_FLOW ){
+        CV_Assert( flow0.size() == prev0.size() && flow0.channels() == 2 &&
+                   flow0.depth() == CV_32F );
+        if (card != BM_CARD_ID(flow0.card)){
+            printf("device memory allocated in flow image is not in same card. Not supported this case!\n");
+            return;
+        }
+    }
+    else {
+        flow0.create( prev0.size(), CV_32FC2, card );
+    }
+
+    if (!prev0.u || !prev0.u->addr){
+        bmcv::attachDeviceMemory(prev0);
+        bmcv::uploadMat(prev0);
+        prev0_flag = 1;
+    }
+    if (!next0.u || !next0.u->addr){
+        bmcv::attachDeviceMemory(next0);
+        bmcv::uploadMat(next0);
+        next0_flag = 1;
+    }
+    if (!flow0.u || !flow0.u->addr){
+        bmcv::attachDeviceMemory(flow0);
+        flow0_flag = 1;
+    }
+
+    BMCpuSender sender(card, 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(prev0));
+    CV_Assert(0 == sender.put(next0));
+    CV_Assert(0 == sender.put(flow0));
+    CV_Assert(0 == sender.put(pyr_scale));
+    CV_Assert(0 == sender.put(levels));
+    CV_Assert(0 == sender.put(winsize));
+    CV_Assert(0 == sender.put(iterations));
+    CV_Assert(0 == sender.put(poly_n));
+    CV_Assert(0 == sender.put(poly_sigma));
+    CV_Assert(0 == sender.put(flags));
+
+    CV_Assert(0 == sender.run("bmcpu_OptFlowFarneback"));
+
+    if (prev0_flag){
+        if (prev0.u && CV_XADD(&prev0.u->refcount, -1) == 1 )
+            prev0.deallocate();
+    }
+    if (next0_flag){
+        if (next0.u && CV_XADD(&next0.u->refcount, -1) == 1 )
+            next0.deallocate();
+    }
+    if (flow0_flag){
+        bmcv::downloadMat(flow0);
+        if (flow0.u && CV_XADD(&flow0.u->refcount, -1) == 1 )
+            flow0.deallocate();
+    }
+    _flow0.assign(flow0);
+#else
+    calcOpticalFlowFarneback(_prev0, _next0, _flow0, pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags);
+#endif
+    return;
+}
+
 void cv::calcOpticalFlowFarneback( InputArray _prev0, InputArray _next0,
                                InputOutputArray _flow0, double pyr_scale, int levels, int winsize,
                                int iterations, int poly_n, double poly_sigma, int flags )

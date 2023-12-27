@@ -335,73 +335,81 @@ void finalizeHdr(Mat& m)
 
 Mat::Mat() CV_NOEXCEPT
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {}
 
-Mat::Mat(int _rows, int _cols, int _type)
+inline
+Mat::Mat(SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), fromhardware(0)
 {
-    create(_rows, _cols, _type);
+	card = device.getSophonIdx();
 }
 
-Mat::Mat(int _rows, int _cols, int _type, const Scalar& _s)
+Mat::Mat(int _rows, int _cols, int _type, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_rows, _cols, _type);
+    create(_rows, _cols, _type, device.getSophonIdx());
+}
+
+Mat::Mat(int _rows, int _cols, int _type, const Scalar& _s, SophonDevice device)
+    : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
+{
+    create(_rows, _cols, _type, device.getSophonIdx());
     *this = _s;
 }
 
-Mat::Mat(Size _sz, int _type)
+Mat::Mat(Size _sz, int _type, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create( _sz.height, _sz.width, _type );
+    create( _sz.height, _sz.width, _type, device.getSophonIdx());
 }
 
-Mat::Mat(Size _sz, int _type, const Scalar& _s)
+Mat::Mat(Size _sz, int _type, const Scalar& _s, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_sz.height, _sz.width, _type);
+    create(_sz.height, _sz.width, _type, device.getSophonIdx());
     *this = _s;
 }
 
-Mat::Mat(int _dims, const int* _sz, int _type)
+Mat::Mat(int _dims, const int* _sz, int _type, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_dims, _sz, _type);
+    create(_dims, _sz, _type, device.getSophonIdx());
 }
 
-Mat::Mat(int _dims, const int* _sz, int _type, const Scalar& _s)
+Mat::Mat(int _dims, const int* _sz, int _type, const Scalar& _s, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_dims, _sz, _type);
+    create(_dims, _sz, _type, device.getSophonIdx());
     *this = _s;
 }
 
-Mat::Mat(const std::vector<int>& _sz, int _type)
+Mat::Mat(const std::vector<int>& _sz, int _type, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_sz, _type);
+    create(_sz, _type, device.getSophonIdx());
 }
 
-Mat::Mat(const std::vector<int>& _sz, int _type, const Scalar& _s)
+Mat::Mat(const std::vector<int>& _sz, int _type, const Scalar& _s, SophonDevice device)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
-    create(_sz, _type);
+    create(_sz, _type, device.getSophonIdx());
     *this = _s;
 }
 
 Mat::Mat(const Mat& m)
     : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), data(m.data),
       datastart(m.datastart), dataend(m.dataend), datalimit(m.datalimit), allocator(m.allocator),
-      u(m.u), size(&rows), step(0)
+      u(m.u), size(&rows), step(0), card(m.card), fromhardware(m.fromhardware)
 {
     if( u )
         CV_XADD(&u->refcount, 1);
@@ -419,7 +427,7 @@ Mat::Mat(const Mat& m)
 Mat::Mat(int _rows, int _cols, int _type, void* _data, size_t _step)
     : flags(MAGIC_VAL + (_type & TYPE_MASK)), dims(2), rows(_rows), cols(_cols),
       data((uchar*)_data), datastart((uchar*)_data), dataend(0), datalimit(0),
-      allocator(0), u(0), size(&rows)
+      allocator(0), u(0), size(&rows), card(0), fromhardware(0)
 {
     CV_Assert(total() == 0 || data != NULL);
 
@@ -447,7 +455,7 @@ Mat::Mat(int _rows, int _cols, int _type, void* _data, size_t _step)
 Mat::Mat(Size _sz, int _type, void* _data, size_t _step)
     : flags(MAGIC_VAL + (_type & TYPE_MASK)), dims(2), rows(_sz.height), cols(_sz.width),
       data((uchar*)_data), datastart((uchar*)_data), dataend(0), datalimit(0),
-      allocator(0), u(0), size(&rows)
+      allocator(0), u(0), size(&rows), card(0), fromhardware(0)
 {
     CV_Assert(total() == 0 || data != NULL);
 
@@ -505,6 +513,8 @@ Mat& Mat::operator=(const Mat& m)
         datalimit = m.datalimit;
         allocator = m.allocator;
         u = m.u;
+        card = m.card;
+        fromhardware = m.fromhardware;
     }
     return *this;
 }
@@ -524,18 +534,18 @@ void Mat::assignTo( Mat& m, int _type ) const
         convertTo(m, _type);
 }
 
-void Mat::create(int _rows, int _cols, int _type)
+void Mat::create(int _rows, int _cols, int _type, int id)
 {
     _type &= TYPE_MASK;
     if( dims <= 2 && rows == _rows && cols == _cols && type() == _type && data )
         return;
     int sz[] = {_rows, _cols};
-    create(2, sz, _type);
+    create(2, sz, _type, id);
 }
 
-void Mat::create(Size _sz, int _type)
+void Mat::create(Size _sz, int _type, int id)
 {
-    create(_sz.height, _sz.width, _type);
+    create(_sz.height, _sz.width, _type, id);
 }
 
 void Mat::addref()
@@ -598,7 +608,7 @@ size_t Mat::total(int startDim, int endDim) const
 Mat::Mat(Mat&& m)
     : flags(m.flags), dims(m.dims), rows(m.rows), cols(m.cols), data(m.data),
       datastart(m.datastart), dataend(m.dataend), datalimit(m.datalimit), allocator(m.allocator),
-      u(m.u), size(&rows)
+      u(m.u), size(&rows), card(m.card), fromhardware(m.fromhardware)
 {
     if (m.dims <= 2)  // move new step/size info
     {
@@ -628,7 +638,7 @@ Mat& Mat::operator=(Mat&& m)
     release();
     flags = m.flags; dims = m.dims; rows = m.rows; cols = m.cols; data = m.data;
     datastart = m.datastart; dataend = m.dataend; datalimit = m.datalimit; allocator = m.allocator;
-    u = m.u;
+    u = m.u; card = m.card; fromhardware = m.fromhardware;
     if (step.p != step.buf) // release self step/size
     {
         fastFree(step.p);
@@ -655,12 +665,82 @@ Mat& Mat::operator=(Mat&& m)
     return *this;
 }
 
+void Mat::create(AVFrame *frame, int id)
+{
+    if (!frame) {
+        return;
+    }
+    if (!empty() && u && u->addr && avOK() &&
+        (avFormat() == frame->format) && (avRows() == frame->height) &&
+        (avCols() == frame->width) && (BM_CARD_ID(id) == BM_CARD_ID(card)))
+    {
+        if (!(BM_CARD_MEMFLAG(id) & UMatData::AVFRAME_ATTACHED))
+            av_frame_free(&frame);
+        return;
+    }
+    release();
 
-void Mat::create(int d, const int* _sizes, int _type)
+    MatAllocator *a = av::getAllocator();
+    u = new UMatData(a);
+    u->frame = frame;
+    if (BM_CARD_MEMFLAG(id) & UMatData::AVFRAME_ATTACHED){
+        u->flags |= UMatData::AVFRAME_ATTACHED;
+    }
+#ifdef HAVE_BMCV
+    u->hid = bmcv::getCard(BM_CARD_ID(id));
+#endif
+
+    UMatOpaque* mat_opaque = (UMatOpaque *)frame->opaque;
+    if (mat_opaque && mat_opaque->magic_number == MAGIC_MAT){
+        UMatData *v = mat_opaque->data;
+        u->size = v->size;
+        u->addr = v->addr;
+        u->mem = v->mem;
+        u->fd = v->fd;
+    } else { // for AVFrame from ffmpeg
+        u->addr = avAddr(4);
+        if (u->frame->buf[0] == NULL) {
+            u->size = 0;
+        } else {
+            u->size = u->frame->buf[0]->size;
+        }
+
+        for (int i = 1; i < 3; i++){
+            if (u->frame->buf[i]) {
+                bm_int64 int buf_size = labs(avAddr(4+i) - u->addr);
+                if (buf_size > u->size + 1024*1024){ // 128*4k = 512k, 2plane 1M video
+                    printf("plane %d addr 0x%lx size %ld next addr 0x%lx\n", i, u->addr, u->size, avAddr(4+i));
+                    printf("MAT Warning: AVFrame device address is discontinuous. Function is limited!\n");
+                    u->size = 0;
+                    break;
+                }else
+                    u->size = buf_size + u->frame->buf[i]->size;
+            }
+        }
+    }
+
+    addref();
+
+    dims = 2;
+    rows = avRows();
+    cols = avCols();
+    flags = MAGIC_VAL | CV_8UC1;
+    u->data = u->origdata = (uchar *)avAddr(0);
+
+    step[0] = avStep(0);
+    step[1] = 1;
+    card = id;
+
+    finalizeHdr(*this);
+}
+
+
+void Mat::create(int d, const int* _sizes, int _type, int id)
 {
     int i;
     CV_Assert(0 <= d && d <= CV_MAX_DIM && _sizes);
     _type = CV_MAT_TYPE(_type);
+    card = (card > 0 && !id) ? card : id;
 
     if( data && (d == dims || (d == 1 && dims <= 2)) && _type == type() )
     {
@@ -696,18 +776,35 @@ void Mat::create(int d, const int* _sizes, int _type)
         if( !a || a == tegra::getAllocator() )
             a = tegra::getAllocator(d, _sizes, _type);
 #endif
+#ifdef USING_SOC
+#if !defined(ENABLE_BMCPU)
+        if (dims == 2 && (_type == CV_8UC3 || _type == CV_32FC3 /*|| _type == CV_8UC1*/ || _type == CV_32FC1) && size[0] >= 16 && size[1] >= 16)
+            a0 = hal::getAllocator();
+#endif
+#else
+        a0 = hal::getAllocator();
+#endif
         if(!a)
             a = a0;
         try
         {
-            u = a->allocate(dims, size, _type, 0, step.p, ACCESS_RW /* ignored */, USAGE_DEFAULT);
+            if (a == hal::getAllocator())
+                u = a->allocate(dims, size, _type, 0, step.p, card);
+            else // for g_numpyAllocator or DefaultAllocator()
+                u = a->allocate(dims, size, _type, 0, step.p, ACCESS_RW /* ignored */, USAGE_DEFAULT);
             CV_Assert(u != 0);
         }
         catch (...)
         {
-            if (a == a0)
-                throw;
-            u = a0->allocate(dims, size, _type, 0, step.p, ACCESS_RW /* ignored */, USAGE_DEFAULT);
+            if ((a != a0) && (a0 == getDefaultAllocator()))
+                u = a0->allocate(dims, size, _type, 0, step.p, ACCESS_RW /* ignored */, USAGE_DEFAULT);
+
+            if (!u) {
+                printf("MAT Allocate Err: ");
+                printf("dims = %d, size = [%d, %d], type = %d\n", dims, size[0], size[1], _type);
+                release();
+            }
+
             CV_Assert(u != 0);
         }
         CV_Assert( step[dims-1] == (size_t)CV_ELEM_SIZE(flags) );
@@ -717,9 +814,9 @@ void Mat::create(int d, const int* _sizes, int _type)
     finalizeHdr(*this);
 }
 
-void Mat::create(const std::vector<int>& _sizes, int _type)
+void Mat::create(const std::vector<int>& _sizes, int _type, int id)
 {
-    create((int)_sizes.size(), _sizes.data(), _type);
+    create((int)_sizes.size(), _sizes.data(), _type, id);
 }
 
 void Mat::copySize(const Mat& m)
@@ -742,9 +839,85 @@ void Mat::deallocate()
     }
 }
 
+Mat::Mat(AVFrame *frame, int id)
+    : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
+      datalimit(0), allocator(0), u(0), size(&rows), step(0), card(id)
+{
+    create(frame, id);
+}
+
+#if 1  // comment it for backward compatible  - xun
+void Mat::create(int d, const int *_sizes, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, int id)
+{
+    int i;
+    CV_Assert(0 <= d && d <= CV_MAX_DIM && _sizes);
+    _type = CV_MAT_TYPE(_type);
+
+    int _sizes_backup[CV_MAX_DIM]; // #5991
+    size_t _steps_backup[CV_MAX_DIM];
+    if (_sizes == (this->size.p))
+    {
+        for(i = 0; i < d; i++ )
+            _sizes_backup[i] = _sizes[i];
+        _sizes = _sizes_backup;
+    }
+    if ((this->step.p != this->step.buf) && _steps == (this->step.p))
+    {
+        for(i = 0; i < d; i++)
+            _steps_backup[i] = _steps[i];
+        _steps = _steps_backup;
+    }
+
+    release();
+    if( d == 0 )
+        return;
+    flags = (_type & CV_MAT_TYPE_MASK) | MAGIC_VAL;
+    card = id;
+
+    setSize(*this, d, _sizes, _steps, true);
+
+    if (total > 0){
+        MatAllocator *a = hal::getAllocator();
+        u = a->allocate(total, _data, addr, fd, card);
+        if (!u){
+            printf("MAT Allocated Err: ");
+            printf("total = %d _data = 0x%p addr = 0x%lx fd = %d id = %d\n", total, _data, addr, fd, card);
+            release();
+        }
+        CV_Assert(u != 0);
+    }
+
+    addref();
+    finalizeHdr(*this);
+}
+
+void Mat::create(int height, int width, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, int id)
+{
+    int d = 2;
+    int sz[] = {height, width};
+
+    create(d, sz, total, _type, _steps, _data, addr, fd, id);
+}
+
+Mat::Mat(int height, int width, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, SophonDevice device)
+    : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
+      datalimit(0), allocator(0), u(0), size(&rows), card(device.getSophonIdx())
+{
+    create(height, width, total, _type, _steps, _data, addr, fd, device.getSophonIdx());
+}
+
+Mat::Mat(int d, const int *_sizes, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, SophonDevice device)
+    : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
+      datalimit(0), allocator(0), u(0), size(&rows), card(device.getSophonIdx())
+{
+    create(d, _sizes, total, _type, _steps, _data, addr, fd, device.getSophonIdx());
+}
+#endif
+
+
 Mat::Mat(const Mat& m, const Range& _rowRange, const Range& _colRange)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows)
+      datalimit(0), allocator(0), u(0), size(&rows), card(m.card)
 {
     CV_Assert( m.dims >= 2 );
     if( m.dims > 2 )
@@ -799,7 +972,7 @@ Mat::Mat(const Mat& m, const Rect& roi)
     : flags(m.flags), dims(2), rows(roi.height), cols(roi.width),
     data(m.data + roi.y*m.step[0]),
     datastart(m.datastart), dataend(m.dataend), datalimit(m.datalimit),
-    allocator(m.allocator), u(m.u), size(&rows)
+    allocator(m.allocator), u(m.u), size(&rows), card(m.card)
 {
     CV_Assert( m.dims <= 2 );
 
@@ -824,7 +997,7 @@ Mat::Mat(const Mat& m, const Rect& roi)
 
 Mat::Mat(int _dims, const int* _sizes, int _type, void* _data, const size_t* _steps)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows)
+      datalimit(0), allocator(0), u(0), size(&rows), card(0)
 {
     flags |= CV_MAT_TYPE(_type);
     datastart = data = (uchar*)_data;
@@ -835,7 +1008,7 @@ Mat::Mat(int _dims, const int* _sizes, int _type, void* _data, const size_t* _st
 
 Mat::Mat(const std::vector<int>& _sizes, int _type, void* _data, const size_t* _steps)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows)
+      datalimit(0), allocator(0), u(0), size(&rows), card(0)
 {
     flags |= CV_MAT_TYPE(_type);
     datastart = data = (uchar*)_data;
@@ -846,7 +1019,7 @@ Mat::Mat(const std::vector<int>& _sizes, int _type, void* _data, const size_t* _
 
 Mat::Mat(const Mat& m, const Range* ranges)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-      datalimit(0), allocator(0), u(0), size(&rows)
+      datalimit(0), allocator(0), u(0), size(&rows), card(0)
 {
     int d = m.dims;
 
@@ -872,7 +1045,7 @@ Mat::Mat(const Mat& m, const Range* ranges)
 
 Mat::Mat(const Mat& m, const std::vector<Range>& ranges)
     : flags(MAGIC_VAL), dims(0), rows(0), cols(0), data(0), datastart(0), dataend(0),
-    datalimit(0), allocator(0), u(0), size(&rows)
+    datalimit(0), allocator(0), u(0), size(&rows), card(0)
 {
     int d = m.dims;
 
@@ -1048,6 +1221,53 @@ void Mat::resize(size_t nelems, const Scalar& s)
         Mat part = rowRange(saveRows, size.p[0]);
         part = s;
     }
+}
+
+bool Mat::avOK() const
+{
+    return u != NULL && u->frame != NULL;
+}
+
+int Mat::avCols() const
+{
+    if( avOK() )
+        return u->frame->width;
+    return 0;
+}
+
+int Mat::avRows() const
+{
+    if( avOK() )
+        return u->frame->height;
+    return 0;
+}
+
+int Mat::avFormat() const
+{
+    if( avOK() )
+        return u->frame->format;
+    return 0;
+}
+
+bool Mat::avComp() const
+{
+    if( avOK() )
+        return u->frame->channel_layout == 101;
+    return false;
+}
+
+bm_uint64 Mat::avAddr(int idx) const
+{
+    if( avOK() && idx >= 0 )
+        return (bm_uint64)u->frame->data[idx];
+    return 0;
+}
+
+int Mat::avStep(int idx) const
+{
+    if( avOK() && idx >= 0 )
+        return u->frame->linesize[idx];
+    return 0;
 }
 
 void Mat::push_back(const Mat& elems)

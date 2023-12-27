@@ -95,7 +95,7 @@ bool checkBigDataTests();
     } \
 
 // Special type of tests which require / use or validate processing of huge amount of data (>= 2Gb)
-#if defined(_M_X64) || defined(_M_ARM64) || defined(__x86_64__) || defined(__aarch64__)
+#if defined(_M_X64) || defined(_M_ARM64) || defined(__x86_64__) || defined(__aarch64__) || (defined(__mips__) && (__mips == 64))
 #define BIGDATA_TEST(test_case_name, test_name) TEST_(BigData_ ## test_case_name, test_name, ::testing::Test, Body,, CV__TEST_BIGDATA_BODY_IMPL)
 #else
 #define BIGDATA_TEST(test_case_name, test_name) TEST_(BigData_ ## test_case_name, DISABLED_ ## test_name, ::testing::Test, Body,, CV__TEST_BIGDATA_BODY_IMPL)

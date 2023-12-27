@@ -2365,7 +2365,7 @@ cv::Ptr<cv::IVideoCapture> cv::cvCreateCapture_MSMF( int index, const cv::VideoC
     return cv::Ptr<cv::IVideoCapture>();
 }
 
-cv::Ptr<cv::IVideoCapture> cv::cvCreateCapture_MSMF (const cv::String& filename, const cv::VideoCaptureParameters& params)
+cv::Ptr<cv::IVideoCapture> cv::cvCreateCapture_MSMF (const cv::String& filename, const cv::VideoCaptureParameters& params, int id)
 {
     cv::Ptr<CvCapture_MSMF> capture = cv::makePtr<CvCapture_MSMF>();
     if (capture)
@@ -2675,7 +2675,8 @@ double CvVideoWriter_MSMF::getProperty(int propId) const
 
 cv::Ptr<cv::IVideoWriter> cv::cvCreateVideoWriter_MSMF( const std::string& filename, int fourcc,
                                                         double fps, const cv::Size& frameSize,
-                                                        const VideoWriterParameters& params)
+                                                        const VideoWriterParameters& params,
+                                                        const std::string &encodeParams)
 {
     cv::Ptr<CvVideoWriter_MSMF> writer = cv::makePtr<CvVideoWriter_MSMF>();
     if (writer)

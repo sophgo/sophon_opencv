@@ -1428,15 +1428,29 @@ void DISOpticalFlowImpl::calc(InputArray I0, InputArray I1, InputOutputArray flo
     CV_Assert(!I0.empty() && I0.depth() == CV_8U && I0.channels() == 1);
     CV_Assert(!I1.empty() && I1.depth() == CV_8U && I1.channels() == 1);
     CV_Assert(I0.sameSize(I1));
-    CV_Assert(I0.isContinuous());
-    CV_Assert(I1.isContinuous());
+    // CV_Assert(I0.isContinuous());
+    // CV_Assert(I1.isContinuous());
 
     CV_OCL_RUN(flow.isUMat() &&
                (patch_size == 8) && (use_spatial_propagation == true),
                ocl_calc(I0, I1, flow));
 
-    Mat I0Mat = I0.getMat();
-    Mat I1Mat = I1.getMat();
+    Mat I0Matorigin = I0.getMat();
+    Mat I0Mat = I0Matorigin;
+    if((!I0Matorigin.isContinuous()) && I0Matorigin.type() == CV_8UC1 )
+    {
+         I0Mat = I0Matorigin.clone();
+    }
+    CV_Assert(I0Mat.isContinuous());
+
+    Mat I1Matorigin = I1.getMat();
+    Mat I1Mat = I1Matorigin;
+    if((!I0Matorigin.isContinuous()) && I0Matorigin.type() == CV_8UC1 )
+    {
+         I1Mat = I1Matorigin.clone();
+    }
+    CV_Assert(I1Mat.isContinuous());
+
     bool use_input_flow = false;
     if (flow.sameSize(I0) && flow.depth() == CV_32F && flow.channels() == 2)
         use_input_flow = true;

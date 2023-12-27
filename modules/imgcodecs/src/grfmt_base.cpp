@@ -52,9 +52,20 @@ BaseImageDecoder::BaseImageDecoder()
     m_width = m_height = 0;
     m_type = -1;
     m_buf_supported = false;
+    m_yuv_output = false;
     m_scale_denom = 1;
+    m_retrySoftDec = false;
 }
 
+void BaseImageDecoder::setOutput( bool yuv_output )
+{
+    m_yuv_output = yuv_output;
+}
+
+void BaseImageDecoder::setSoftDec(bool retrySoftDec)
+{
+    m_retrySoftDec = retrySoftDec;
+}
 
 ExifEntry_t BaseImageDecoder::getExifTag(const ExifTagName tag) const
 {

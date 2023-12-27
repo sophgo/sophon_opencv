@@ -1510,6 +1510,10 @@ sigmaX, and sigmaY.
 
 @sa  sepFilter2D, filter2D, blur, boxFilter, bilateralFilter, medianBlur
  */
+CV_EXPORTS_W void bmcpu_GaussianBlur(InputArray _src, OutputArray _dst, Size ksize,
+                                     double sigmaX, double sigmaY = 0,
+                                     int borderType = BORDER_DEFAULT);
+
 CV_EXPORTS_W void GaussianBlur( InputArray src, OutputArray dst, Size ksize,
                                 double sigmaX, double sigmaY = 0,
                                 int borderType = BORDER_DEFAULT );
@@ -1542,6 +1546,10 @@ farther pixels will influence each other as long as their colors are close enoug
 proportional to sigmaSpace.
 @param borderType border mode used to extrapolate pixels outside of the image, see #BorderTypes
  */
+CV_EXPORTS_W void bmcpu_bilateralFilter( InputArray src, OutputArray dst, int d,
+                                         double sigmaColor, double sigmaSpace,
+                                         int borderType = BORDER_DEFAULT );
+
 CV_EXPORTS_W void bilateralFilter( InputArray src, OutputArray dst, int d,
                                    double sigmaColor, double sigmaSpace,
                                    int borderType = BORDER_DEFAULT );
@@ -1570,6 +1578,10 @@ center.
 @param borderType border mode used to extrapolate pixels outside of the image, see #BorderTypes. #BORDER_WRAP is not supported.
 @sa  blur, bilateralFilter, GaussianBlur, medianBlur, integral
  */
+CV_EXPORTS_W void bmcpu_boxFilter(InputArray _src, OutputArray _dst, int ddepth,
+                                 Size ksize, Point anchor = Point(-1, -1),
+                                 bool normalize = true, int borderType = BORDER_DEFAULT);
+
 CV_EXPORTS_W void boxFilter( InputArray src, OutputArray dst, int ddepth,
                              Size ksize, Point anchor = Point(-1,-1),
                              bool normalize = true,
@@ -1741,6 +1753,10 @@ applied (see #getDerivKernels for details).
 @param borderType pixel extrapolation method, see #BorderTypes. #BORDER_WRAP is not supported.
 @sa  Scharr, Laplacian, sepFilter2D, filter2D, GaussianBlur, cartToPolar
  */
+CV_EXPORTS_W void bmcpu_Sobel( InputArray src, OutputArray dst, int ddepth, int dx, int dy,
+                               int ksize = 3, double scale = 1, double delta = 0,
+                               int borderType = BORDER_DEFAULT );
+
 CV_EXPORTS_W void Sobel( InputArray src, OutputArray dst, int ddepth,
                          int dx, int dy, int ksize = 3,
                          double scale = 1, double delta = 0,
@@ -2279,6 +2295,11 @@ anchor is at the element center.
 @param borderValue border value in case of a constant border
 @sa  dilate, morphologyEx, getStructuringElement
  */
+CV_EXPORTS_W void bmcpu_erode( InputArray src, OutputArray dst, InputArray kernel,
+                               Point anchor = Point(-1,-1), int iterations = 1,
+                               int borderType = BORDER_CONSTANT,
+                               const Scalar& borderValue = morphologyDefaultBorderValue() );
+
 CV_EXPORTS_W void erode( InputArray src, OutputArray dst, InputArray kernel,
                          Point anchor = Point(-1,-1), int iterations = 1,
                          int borderType = BORDER_CONSTANT,
@@ -2311,6 +2332,11 @@ anchor is at the element center.
 @param borderValue border value in case of a constant border
 @sa  erode, morphologyEx, getStructuringElement
  */
+CV_EXPORTS_W void bmcpu_dilate( InputArray src, OutputArray dst, InputArray kernel,
+                                Point anchor = Point(-1,-1), int iterations = 1,
+                                int borderType = BORDER_CONSTANT,
+                                const Scalar& borderValue = morphologyDefaultBorderValue() );
+
 CV_EXPORTS_W void dilate( InputArray src, OutputArray dst, InputArray kernel,
                           Point anchor = Point(-1,-1), int iterations = 1,
                           int borderType = BORDER_CONSTANT,
@@ -2340,6 +2366,12 @@ meaning.
 For instance, an opening operation (#MORPH_OPEN) with two iterations is equivalent to apply
 successively: erode -> erode -> dilate -> dilate (and not erode -> dilate -> erode -> dilate).
  */
+CV_EXPORTS_W void bmcpu_morphologyEx( InputArray src, OutputArray dst,
+                                      int op, InputArray kernel,
+                                      Point anchor = Point(-1,-1), int iterations = 1,
+                                      int borderType = BORDER_CONSTANT,
+                                      const Scalar& borderValue = morphologyDefaultBorderValue() );
+
 CV_EXPORTS_W void morphologyEx( InputArray src, OutputArray dst,
                                 int op, InputArray kernel,
                                 Point anchor = Point(-1,-1), int iterations = 1,
@@ -2413,6 +2445,12 @@ the "outliers" in the source image are not modified by the function.
 
 @sa  warpPerspective, resize, remap, getRectSubPix, transform
  */
+CV_EXPORTS_W void bmcpu_warpAffine( InputArray src, OutputArray dst,
+                                    InputArray M, Size dsize,
+                                    int flags = INTER_LINEAR,
+                                    int borderMode = BORDER_CONSTANT,
+                                    const Scalar& borderValue = Scalar());
+
 CV_EXPORTS_W void warpAffine( InputArray src, OutputArray dst,
                               InputArray M, Size dsize,
                               int flags = INTER_LINEAR,
@@ -3182,6 +3220,11 @@ counted in the histogram.
 when it is allocated. This feature enables you to compute a single histogram from several sets of
 arrays, or to update the histogram in time.
 */
+CV_EXPORTS void bmcpu_calcHist( const Mat* images, int nimages,
+                                const int* channels, InputArray mask,
+                                OutputArray hist, int dims, const int* histSize,
+                                const float** ranges, bool uniform = true, bool accumulate = false );
+
 CV_EXPORTS void calcHist( const Mat* images, int nimages,
                           const int* channels, InputArray mask,
                           OutputArray hist, int dims, const int* histSize,
@@ -3205,6 +3248,13 @@ ranges argument is either empty vector or a flattened vector of histSize.size()*
 (histSize.size() element pairs). The first and second elements of each pair specify the lower and
 upper boundaries.
 */
+CV_EXPORTS_W void bmcpu_calcHist( InputArrayOfArrays images,
+                                  const std::vector<int>& channels,
+                                  InputArray mask, OutputArray hist,
+                                  const std::vector<int>& histSize,
+                                  const std::vector<float>& ranges,
+                                  bool accumulate = false );
+
 CV_EXPORTS_W void calcHist( InputArrayOfArrays images,
                             const std::vector<int>& channels,
                             InputArray mask, OutputArray hist,
@@ -4474,6 +4524,9 @@ lines are drawn using Gaussian filtering.
 @param lineType Type of the line. See #LineTypes.
 @param shift Number of fractional bits in the point coordinates.
  */
+CV_EXPORTS_W void bmcpu_line(InputOutputArray img, Point pt1, Point pt2, const Scalar& color,
+                     int thickness = 1, int lineType = LINE_8, int shift = 0);
+
 CV_EXPORTS_W void line(InputOutputArray img, Point pt1, Point pt2, const Scalar& color,
                      int thickness = 1, int lineType = LINE_8, int shift = 0);
 
@@ -4507,6 +4560,10 @@ mean that the function has to draw a filled rectangle.
 @param lineType Type of the line. See #LineTypes
 @param shift Number of fractional bits in the point coordinates.
  */
+CV_EXPORTS_W void bmcpu_rectangle(InputOutputArray img, Point pt1, Point pt2,
+                          const Scalar& color, int thickness = 1,
+                          int lineType = LINE_8, int shift = 0);
+
 CV_EXPORTS_W void rectangle(InputOutputArray img, Point pt1, Point pt2,
                           const Scalar& color, int thickness = 1,
                           int lineType = LINE_8, int shift = 0);
@@ -4536,6 +4593,10 @@ mean that a filled circle is to be drawn.
 @param lineType Type of the circle boundary. See #LineTypes
 @param shift Number of fractional bits in the coordinates of the center and in the radius value.
  */
+CV_EXPORTS_W void bmcpu_circle(InputOutputArray img, Point center, int radius,
+                       const Scalar& color, int thickness = 1,
+                       int lineType = LINE_8, int shift = 0);
+
 CV_EXPORTS_W void circle(InputOutputArray img, Point center, int radius,
                        const Scalar& color, int thickness = 1,
                        int lineType = LINE_8, int shift = 0);
@@ -4565,6 +4626,11 @@ a filled ellipse sector is to be drawn.
 @param lineType Type of the ellipse boundary. See #LineTypes
 @param shift Number of fractional bits in the coordinates of the center and values of axes.
  */
+CV_EXPORTS_W void bmcpu_ellipse(InputOutputArray img, Point center, Size axes,
+                        double angle, double startAngle, double endAngle,
+                        const Scalar& color, int thickness = 1,
+                        int lineType = LINE_8, int shift = 0);
+
 CV_EXPORTS_W void ellipse(InputOutputArray img, Point center, Size axes,
                         double angle, double startAngle, double endAngle,
                         const Scalar& color, int thickness = 1,
@@ -4579,6 +4645,9 @@ an ellipse inscribed in the rotated rectangle.
 a filled ellipse sector is to be drawn.
 @param lineType Type of the ellipse boundary. See #LineTypes
 */
+CV_EXPORTS_W void bmcpu_ellipse(InputOutputArray img, const RotatedRect& box, const Scalar& color,
+                        int thickness = 1, int lineType = LINE_8);
+
 CV_EXPORTS_W void ellipse(InputOutputArray img, const RotatedRect& box, const Scalar& color,
                         int thickness = 1, int lineType = LINE_8);
 
@@ -4652,6 +4721,11 @@ CV_EXPORTS_W void fillPoly(InputOutputArray img, InputArrayOfArrays pts,
                            Point offset = Point() );
 
 /** @overload */
+CV_EXPORTS void bmcpu_fillPoly(InputOutputArray img, const Point** pts,
+                         const int* npts, int ncontours,
+                         const Scalar& color, int lineType = LINE_8, int shift = 0,
+                         Point offset = Point() );
+
 CV_EXPORTS void fillPoly(InputOutputArray img, const Point** pts,
                          const int* npts, int ncontours,
                          const Scalar& color, int lineType = LINE_8, int shift = 0,
@@ -4675,6 +4749,10 @@ CV_EXPORTS_W void polylines(InputOutputArray img, InputArrayOfArrays pts,
                             int thickness = 1, int lineType = LINE_8, int shift = 0 );
 
 /** @overload */
+CV_EXPORTS void bmcpu_polylines(InputOutputArray img, const Point* const* pts, const int* npts,
+                          int ncontours, bool isClosed, const Scalar& color,
+                          int thickness = 1, int lineType = LINE_8, int shift = 0 );
+
 CV_EXPORTS void polylines(InputOutputArray img, const Point* const* pts, const int* npts,
                           int ncontours, bool isClosed, const Scalar& color,
                           int thickness = 1, int lineType = LINE_8, int shift = 0 );
@@ -4795,6 +4873,11 @@ example.
 @param bottomLeftOrigin When true, the image data origin is at the bottom-left corner. Otherwise,
 it is at the top-left corner.
  */
+CV_EXPORTS_W void bmcpu_putText( InputOutputArray img, const String& text, Point org,
+                         int fontFace, double fontScale, Scalar color,
+                         int thickness = 1, int lineType = LINE_8,
+                         bool bottomLeftOrigin = false );
+
 CV_EXPORTS_W void putText( InputOutputArray img, const String& text, Point org,
                          int fontFace, double fontScale, Scalar color,
                          int thickness = 1, int lineType = LINE_8,
@@ -4909,37 +4992,38 @@ public:
     up, down, left and right) and 8 (iterator can also move diagonally).
     @param leftToRight If true, the line is traversed from the leftmost endpoint to the rightmost
     endpoint. Otherwise, the line is traversed from \p pt1 to \p pt2.
+    @img_yuvtype   0 is Y,   1 is U,  2 is V.
     */
     LineIterator( const Mat& img, Point pt1, Point pt2,
-                  int connectivity = 8, bool leftToRight = false )
+                  int connectivity = 8, bool leftToRight = false, int img_yuvtype = 0)
     {
-        init(&img, Rect(0, 0, img.cols, img.rows), pt1, pt2, connectivity, leftToRight);
+        init(&img, Rect(0, 0, img.cols, img.rows), pt1, pt2, connectivity, leftToRight, img_yuvtype);
         ptmode = false;
     }
     LineIterator( Point pt1, Point pt2,
-                  int connectivity = 8, bool leftToRight = false )
+                  int connectivity = 8, bool leftToRight = false, int img_yuvtype = 0 )
     {
         init(0, Rect(std::min(pt1.x, pt2.x),
                      std::min(pt1.y, pt2.y),
                      std::max(pt1.x, pt2.x) - std::min(pt1.x, pt2.x) + 1,
                      std::max(pt1.y, pt2.y) - std::min(pt1.y, pt2.y) + 1),
-             pt1, pt2, connectivity, leftToRight);
+             pt1, pt2, connectivity, leftToRight, img_yuvtype);
         ptmode = true;
     }
     LineIterator( Size boundingAreaSize, Point pt1, Point pt2,
-                  int connectivity = 8, bool leftToRight = false )
+                  int connectivity = 8, bool leftToRight = false, int img_yuvtype = 0 )
     {
         init(0, Rect(0, 0, boundingAreaSize.width, boundingAreaSize.height),
-             pt1, pt2, connectivity, leftToRight);
+             pt1, pt2, connectivity, leftToRight, img_yuvtype);
         ptmode = true;
     }
     LineIterator( Rect boundingAreaRect, Point pt1, Point pt2,
-                  int connectivity = 8, bool leftToRight = false )
+                  int connectivity = 8, bool leftToRight = false, int img_yuvtype = 0 )
     {
-        init(0, boundingAreaRect, pt1, pt2, connectivity, leftToRight);
+        init(0, boundingAreaRect, pt1, pt2, connectivity, leftToRight, img_yuvtype);
         ptmode = true;
     }
-    void init(const Mat* img, Rect boundingAreaRect, Point pt1, Point pt2, int connectivity, bool leftToRight);
+    void init(const Mat* img, Rect boundingAreaRect, Point pt1, Point pt2, int connectivity, bool leftToRight, int img_yuvtype);
 
     /** @brief Returns pointer to the current pixel.
     */
@@ -5025,10 +5109,12 @@ Point LineIterator::pos() const
 //! @} imgproc_draw
 
 //! @} imgproc
-
+CV_EXPORTS void enableLibyuvConverter( bool isEnabled );
 } // cv
 
-
+//#ifdef __ARM_ARCH
+#include "opencv2/imgproc/vpp.hpp"
+//#endif
 #include "./imgproc/segmentation.hpp"
 
 

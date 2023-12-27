@@ -9,6 +9,9 @@
 
 #include "color_yuv.simd.hpp"
 #include "color_yuv.simd_declarations.hpp" // defines CV_CPU_DISPATCH_MODES_ALL=AVX2,...,BASELINE based on CMakeLists.txt content
+#ifdef HAVE_LIBYUV
+#include "libyuv.h"
+#endif
 
 namespace cv {
 
@@ -335,12 +338,42 @@ bool oclCvtColorBGR2ThreePlaneYUV( InputArray _src, OutputArray _dst, int bidx, 
 // HAL calls
 //
 
-void cvtColorBGR2YUV(InputArray _src, OutputArray _dst, bool swapb, bool crcb)
+void cvtColorBGR2YUV(InputArray _src, OutputArray _dst, bool swapb, bool crcb, int code)
 {
     CvtHelper< Set<3, 4>, Set<3>, Set<CV_8U, CV_16U, CV_32F> > h(_src, _dst, 3);
 
-    hal::cvtBGRtoYUV(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
-                     h.depth, h.scn, swapb, crcb);
+#ifdef HAVE_LIBYUV
+    if (IsLibyuvConverterEnabled())
+    {
+        if (_src.type() == CV_8UC3 && code == COLOR_BGR2YCrCb)
+        {
+           //printf("call++libyuv::RGB24ToJYVU\n");
+           libyuv::RGB24ToJYVU(h.src.data, h.src.step[0], h.dst.data, h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_RGB2YCrCb)
+        {
+            //printf("call++libyuv::RAWToJYVU\n");
+            libyuv::RAWToJYVU(h.src.data, h.src.step[0], h.dst.data, h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_BGR2YUV)
+        {
+            //printf("call++libyuv::RGB24ToYUV\n");
+            libyuv::RGB24ToYUV(h.src.data, h.src.step[0], h.dst.data, h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_RGB2YUV)
+        {
+            //printf("call++libyuv::RAW2YUV\n");
+            libyuv::RAWToYUV(h.src.data, h.src.step[0], h.dst.data, h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else
+            hal::cvtBGRtoYUV(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                             h.depth, h.scn, swapb, crcb);
+    }
+    else
+#endif
+        hal::cvtBGRtoYUV(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                         h.depth, h.scn, swapb, crcb);
+
 }
 
 void cvtColorYUV2BGR(InputArray _src, OutputArray _dst, int dcn, bool swapb, bool crcb)

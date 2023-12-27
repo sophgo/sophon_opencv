@@ -174,6 +174,24 @@ void cvtColorTwoPlane( InputArray _ysrc, InputArray _uvsrc, OutputArray _dst, in
 //////////////////////////////////////////////////////////////////////////////////////////
 //                                   The main function                                  //
 //////////////////////////////////////////////////////////////////////////////////////////
+static bool IsEnableLibyuv = false;
+
+void enableLibyuvConverter( bool isEnabled )
+{
+    if(isEnabled) {
+        IsEnableLibyuv = true;
+    } else {
+        IsEnableLibyuv = false;
+    }
+ }
+
+bool IsLibyuvConverterEnabled()
+{
+    if(IsEnableLibyuv) {
+        return true;
+    }
+    return false;
+}
 
 void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
 {
@@ -188,19 +206,92 @@ void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
                 !(CV_MAT_DEPTH(_src.type()) == CV_8U && (code == COLOR_Luv2BGR || code == COLOR_Luv2RGB)),
                 ocl_cvtColor(_src, _dst, code, dcn) )
 
+#if (defined HAVE_BMCV) && (defined USING_SOC)
+    Size srcsize = _src.getSz();
+    if(CV_MAT_DEPTH(_src.type()) == CV_8U)
+    {
+         Mat src;
+         if (_src.getObj() == _dst.getObj()) // inplace processing (#6653)
+            _src.copyTo(src);
+         else
+            src = _src.getMat();
+         Size sz = src.size(),dstSz = sz;
+        if(sz.width < 16 || sz.height < 16 || src.u ==0 || src.u->addr == 0 )
+            goto softcvt;
+        if( COLOR_RGB2BGR == code )
+        {
+           dstSz = sz;
+           if(bmcv::hwColorCvt(src,  _dst, FORMAT_BGR_PACKED, FORMAT_RGB_PACKED, dstSz, 3) == 0)
+               return;
+        }
+        /*
+        else if(COLOR_BGR2GRAY == code || COLOR_RGB2GRAY == code )    //support in future
+        {
+           int srcFmt = (code==COLOR_RGB2GRAY) ? FORMAT_RGB_PACKED:FORMAT_BGR_PACKED;
+           dstSz = sz;
+           if(bmcv::hwColorCvt(src,  _dst, srcFmt, FORMAT_GRAY,dstSz, 1) == 0)
+               return;
+        }
+        */
+        else if(COLOR_YUV2GRAY_IYUV == code || COLOR_YUV2GRAY_NV12 == code)
+        {
+            if (src.avOK()){
+                Mat src_gray = src;
+                if (src_gray.avOK()) src_gray.u->frame = NULL;  // fake it as 8UC1 gray image
+                src_gray.copyTo(_dst);
+                return;
+            }
+        }
+        else if((code == COLOR_YUV2RGB_NV12 || code == COLOR_YUV2BGR_NV12) )
+        {
+            int dstFmt = (code==COLOR_YUV2RGB_NV12) ? FORMAT_RGB_PACKED:FORMAT_BGR_PACKED;
+            if (!src.avOK()){
+                CV_Assert( sz.width % 2 == 0 && sz.height % 3 == 0);
+                dstSz = Size(sz.width, sz.height * 2 / 3);
+            } else
+                dstSz = Size(sz.width, sz.height);
+             if(bmcv::hwColorCvt(src,  _dst, FORMAT_NV12, dstFmt, dstSz, 3) == 0)
+               return;
+        }
+        else if((code == COLOR_YUV2BGR_IYUV || code == COLOR_YUV2RGB_IYUV))
+        {
+             int dstFmt = (code==COLOR_YUV2RGB_IYUV) ? FORMAT_RGB_PACKED:FORMAT_BGR_PACKED;
+            if (!src.avOK()){
+                CV_Assert( sz.width % 2 == 0 && sz.height % 3 == 0);
+                dstSz = Size(sz.width, sz.height * 2 / 3);
+            } else
+                dstSz = Size(sz.width, sz.height);
+
+             if(bmcv::hwColorCvt(src,  _dst, FORMAT_YUV420P, dstFmt, dstSz, 3) == 0)
+               return;
+        }
+        /*  yu 's abs error is 19 which is too bigger
+        else if((code == COLOR_BGR2YUV_IYUV || code == COLOR_RGB2YUV_IYUV))
+        {
+             int srcFmt = (code==COLOR_RGB2YUV_IYUV) ? FORMAT_RGB_PACKED:FORMAT_BGR_PACKED;
+             CV_Assert( sz.width % 2 == 0 && sz.height % 2 == 0 );
+             dstSz = Size(sz.width, sz.height * 3 / 2);
+
+             if(bmcv::hwColorCvt(src,  _dst, srcFmt, FORMAT_YUV420P, dstSz, 1) == 0)
+               return;
+        }*/
+    }
+#endif
+
+softcvt:
     switch( code )
     {
         case COLOR_BGR2BGRA: case COLOR_RGB2BGRA: case COLOR_BGRA2BGR:
         case COLOR_RGBA2BGR: case COLOR_RGB2BGR:  case COLOR_BGRA2RGBA:
             if(_src.channels() == 1)
-                cvtColorGray2BGR(_src, _dst, dcn);
+                cvtColorGray2BGR(_src, _dst, dcn, code);
             else
-                cvtColorBGR2BGR(_src, _dst, dcn, swapBlue(code));
+                cvtColorBGR2BGR(_src, _dst, dcn, swapBlue(code), code);
             break;
 
         case COLOR_BGR2BGR565:  case COLOR_BGR2BGR555: case COLOR_BGRA2BGR565: case COLOR_BGRA2BGR555:
         case COLOR_RGB2BGR565:  case COLOR_RGB2BGR555: case COLOR_RGBA2BGR565: case COLOR_RGBA2BGR555:
-            cvtColorBGR25x5(_src, _dst, swapBlue(code), greenBits(code));
+            cvtColorBGR25x5(_src, _dst, swapBlue(code), greenBits(code), code);
             break;
 
         case COLOR_BGR5652BGR:  case COLOR_BGR5552BGR: case COLOR_BGR5652BGRA: case COLOR_BGR5552BGRA:
@@ -210,7 +301,7 @@ void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
 
         case COLOR_BGR2GRAY: case COLOR_BGRA2GRAY:
         case COLOR_RGB2GRAY: case COLOR_RGBA2GRAY:
-            cvtColorBGR2Gray(_src, _dst, swapBlue(code));
+            cvtColorBGR2Gray(_src, _dst, swapBlue(code), code);
             break;
 
         case COLOR_BGR5652GRAY:
@@ -220,7 +311,7 @@ void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
 
         case COLOR_GRAY2BGR:
         case COLOR_GRAY2BGRA:
-            cvtColorGray2BGR(_src, _dst, dcn);
+            cvtColorGray2BGR(_src, _dst, dcn, code);
             break;
 
         case COLOR_GRAY2BGR565:
@@ -230,7 +321,7 @@ void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
 
         case COLOR_BGR2YCrCb: case COLOR_RGB2YCrCb:
         case COLOR_BGR2YUV:   case COLOR_RGB2YUV:
-            cvtColorBGR2YUV(_src, _dst, swapBlue(code), code == COLOR_BGR2YCrCb || code == COLOR_RGB2YCrCb);
+            cvtColorBGR2YUV(_src, _dst, swapBlue(code), code == COLOR_BGR2YCrCb || code == COLOR_RGB2YCrCb, code);
             break;
 
         case COLOR_YCrCb2BGR: case COLOR_YCrCb2RGB:

@@ -10,4 +10,6 @@
 // For example, patented algorithms for non-profit/non-commercial use only.
 #cmakedefine OPENCV_ENABLE_NONFREE
 
+#cmakedefine HAVE_BMCV
+
 @OPENCV_MODULE_DEFINITIONS_CONFIGMAKE@

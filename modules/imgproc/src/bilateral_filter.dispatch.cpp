@@ -400,6 +400,68 @@ static bool ipp_bilateralFilter(Mat &src, Mat &dst, int d, double sigmaColor, do
 }
 #endif
 
+void bmcpu_bilateralFilter( InputArray _src, OutputArray _dst, int d,
+                            double sigmaColor, double sigmaSpace,
+                            int borderType )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    int type = _src.type();
+    Size size = _src.size();
+
+    Mat src = _src.getMat();
+    Mat dst = _dst.getMat();
+    int card = src.card;
+    int dst_flag = 0, src_flag = 0;
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    dst.create( size, type, card );
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    if( src.depth() != CV_8U && src.depth() != CV_32F ){
+        CV_Error( CV_StsUnsupportedFormat,
+        "Bilateral filtering is only implemented for 8u and 32f images" );
+        return;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(d));
+    CV_Assert(0 == sender.put(sigmaColor));
+    CV_Assert(0 == sender.put(sigmaSpace));
+    CV_Assert(0 == sender.put(borderType));
+
+    CV_Assert(0 == sender.run("bmcpu_bilateralFilter"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+
+    _dst.assign(dst);
+#else
+    bilateralFilter(_src, _dst, d, sigmaColor, sigmaSpace, borderType);
+#endif
+
+    return;
+}
+
 void bilateralFilter( InputArray _src, OutputArray _dst, int d,
                       double sigmaColor, double sigmaSpace,
                       int borderType )

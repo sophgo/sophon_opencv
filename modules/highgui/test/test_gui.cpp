@@ -59,7 +59,8 @@ inline void verify_size(const std::string &nm, const cv::Mat &img)
         && !defined HAVE_WIN32UI \
         && !defined HAVE_COCOA \
         && !defined HAVE_WAYLAND \
-    )
+    ) \
+    || defined(BM1684_CHIP) // disable on sophon_device
 TEST(Highgui_GUI, DISABLED_regression)
 #else
 TEST(Highgui_GUI, regression)
@@ -138,6 +139,7 @@ static void Foo(int, void* counter)
         && !defined HAVE_WIN32UI \
         && !defined HAVE_WAYLAND \
     ) \
+    || defined(BM1684_CHIP) \
     || defined(__APPLE__)  // test fails on Mac (cocoa)
 TEST(Highgui_GUI, DISABLED_trackbar_unsafe)
 #else
@@ -178,6 +180,7 @@ void testTrackbarCallback(int pos, void* param)
         && !defined HAVE_WIN32UI \
         && !defined HAVE_WAYLAND \
     ) \
+    || defined(BM1684_CHIP) \
     || defined(__APPLE__)  // test fails on Mac (cocoa)
 TEST(Highgui_GUI, DISABLED_trackbar)
 #else

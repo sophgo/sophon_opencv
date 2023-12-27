@@ -1540,7 +1540,8 @@ void MotionJpegWriter::writeFrameData( const uchar* data, int step, int colorspa
 
 Ptr<IVideoWriter> createMotionJpegWriter(const std::string& filename, int fourcc,
                                          double fps, const Size& frameSize,
-                                         const VideoWriterParameters& params)
+                                         const VideoWriterParameters& params,
+                                         int id, const std::string &encodeParams)
 {
     if (fourcc != CV_FOURCC('M', 'J', 'P', 'G'))
         return Ptr<IVideoWriter>();

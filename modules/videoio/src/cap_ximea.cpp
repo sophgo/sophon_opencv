@@ -53,7 +53,7 @@ cv::Ptr<cv::IVideoCapture> cv::create_XIMEA_capture_cam( int index )
     return 0;
 }
 
-cv::Ptr<cv::IVideoCapture> cv::create_XIMEA_capture_file( const std::string &serialNumber )
+cv::Ptr<cv::IVideoCapture> cv::create_XIMEA_capture_file( const std::string &serialNumber, int id )
 {
     CvCaptureCAM_XIMEA* capture = new CvCaptureCAM_XIMEA;
 

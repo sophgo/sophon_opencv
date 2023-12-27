@@ -1119,7 +1119,7 @@ cv::Ptr<cv::IVideoCapture> cv::create_OpenNI2_capture_cam( int index )
     return 0;
 }
 
-cv::Ptr<cv::IVideoCapture> cv::create_OpenNI2_capture_file( const std::string &filename )
+cv::Ptr<cv::IVideoCapture> cv::create_OpenNI2_capture_file( const std::string &filename, int id )
 {
     CvCapture_OpenNI2* capture = new CvCapture_OpenNI2( filename.c_str() );
 

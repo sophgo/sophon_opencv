@@ -338,7 +338,7 @@ bool CvCapture_Images::isOpened() const
     return !filename_pattern.empty();
 }
 
-Ptr<IVideoCapture> create_Images_capture(const std::string &filename)
+Ptr<IVideoCapture> create_Images_capture(const std::string &filename, int id)
 {
     return makePtr<CvCapture_Images>(filename);
 }
@@ -430,7 +430,7 @@ bool CvVideoWriter_Images::setProperty( int id, double value )
 }
 
 Ptr<IVideoWriter> create_Images_writer(const std::string &filename, int, double, const Size &,
-    const cv::VideoWriterParameters&)
+    const cv::VideoWriterParameters&, int id, const std::string &encodeParams)
 {
     CvVideoWriter_Images *writer = new CvVideoWriter_Images;
 

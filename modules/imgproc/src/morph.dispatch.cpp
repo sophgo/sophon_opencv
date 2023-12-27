@@ -1001,6 +1001,86 @@ static void morphOp( int op, InputArray _src, OutputArray _dst,
                (src.isSubmatrix() && !isolated));
 }
 
+void bmcpu_morphologyEx( InputArray _src, OutputArray _dst, int op,
+                         InputArray _kernel, Point anchor, int iterations,
+                         int borderType, const Scalar& borderValue )
+{
+    CV_INSTRUMENT_REGION();
+
+#if !defined(USING_SOC) && defined(BM1684_CHIP)
+    Mat src = _src.getMat();
+    Mat dst = _dst.getMat();
+    Mat kernel = _kernel.getMat();
+    int card = src.card;
+    int src_flag = 0, dst_flag = 0, kernel_flag = 0;
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    if (!kernel.empty() && (!kernel.u || !kernel.u->addr)){
+        kernel.card = card;
+        bmcv::attachDeviceMemory(kernel);
+        bmcv::uploadMat(kernel);
+        kernel_flag = 1;
+    }
+
+    dst.create( src.size(), src.type(), card );
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(kernel));
+    CV_Assert(0 == sender.put(op));
+    CV_Assert(0 == sender.put(anchor));
+    CV_Assert(0 == sender.put(iterations));
+    CV_Assert(0 == sender.put(borderType));
+    CV_Assert(0 == sender.put(const_cast<Scalar &>(borderValue)));
+
+    CV_Assert(0 == sender.run("bmcpu_morphologyEx"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+    if (kernel_flag){
+        if (kernel.u && CV_XADD(&kernel.u->refcount, -1) == 1)
+            kernel.deallocate();
+    }
+
+    _dst.assign(dst);
+
+#else
+    morphologyEx(_src, _dst, op, _kernel, anchor, iterations, borderType, borderValue);
+#endif
+
+    return;
+}
+
+void bmcpu_erode( InputArray src, OutputArray dst, InputArray kernel,
+                  Point anchor, int iterations,
+                  int borderType, const Scalar& borderValue )
+{
+    CV_INSTRUMENT_REGION();
+
+    bmcpu_morphologyEx( src, dst, MORPH_ERODE, kernel, anchor, iterations, borderType, borderValue );
+
+    return;
+}
+
 void erode( InputArray src, OutputArray dst, InputArray kernel,
                 Point anchor, int iterations,
                 int borderType, const Scalar& borderValue )
@@ -1012,6 +1092,14 @@ void erode( InputArray src, OutputArray dst, InputArray kernel,
     morphOp( MORPH_ERODE, src, dst, kernel, anchor, iterations, borderType, borderValue );
 }
 
+void bmcpu_dilate( InputArray src, OutputArray dst, InputArray kernel,
+                   Point anchor, int iterations,
+                   int borderType, const Scalar& borderValue )
+{
+    CV_INSTRUMENT_REGION();
+
+    bmcpu_morphologyEx( src, dst, MORPH_DILATE, kernel, anchor, iterations, borderType, borderValue );
+}
 
 void dilate( InputArray src, OutputArray dst, InputArray kernel,
                  Point anchor, int iterations,

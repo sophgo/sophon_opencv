@@ -165,6 +165,8 @@ if(OPENCV_SEMIHOSTING)
   ocv_target_compile_definitions(${the_module} PRIVATE "-DOPENCV_SEMIHOSTING")
 endif(OPENCV_SEMIHOSTING)
 
+ocv_target_link_libraries(${the_module} LINK_PUBLIC ${FFMPEG_LIBRARIES})
+
 if(HAVE_HPX)
   ocv_target_link_libraries(${the_module} LINK_PRIVATE "${HPX_LIBRARIES}")
 endif()

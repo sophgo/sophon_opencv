@@ -284,7 +284,7 @@ int VideoCapture_IntelMFX::getCaptureDomain()
 
 //==================================================================================================
 
-cv::Ptr<IVideoCapture> cv::create_MFX_capture(const std::string &filename)
+cv::Ptr<IVideoCapture> cv::create_MFX_capture(const std::string &filename, int id)
 {
     return cv::makePtr<VideoCapture_IntelMFX>(filename);
 }

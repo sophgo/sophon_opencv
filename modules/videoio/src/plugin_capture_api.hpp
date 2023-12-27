@@ -53,7 +53,7 @@ struct OpenCV_VideoIO_Capture_Plugin_API_v1_0_api_entries
 
     @note API-CALL 2, API-Version == 0
      */
-    CvResult (CV_API_CALL *Capture_open)(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle);
+    CvResult (CV_API_CALL *Capture_open)(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle, int id);
 
     /** @brief Release Capture handle
 
@@ -118,7 +118,7 @@ struct OpenCV_VideoIO_Capture_Plugin_API_v1_1_api_entries
     CvResult (CV_API_CALL *Capture_open_with_params)(
         const char* filename, int camera_index,
         int* params, unsigned n_params,
-        CV_OUT CvPluginCapture* handle);
+        CV_OUT CvPluginCapture* handle, int id);
 }; // OpenCV_VideoIO_Capture_Plugin_API_v1_1_api_entries
 
 typedef struct OpenCV_VideoIO_Capture_Plugin_API_v1_0

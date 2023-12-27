@@ -97,6 +97,7 @@ INSTANTIATE_TEST_CASE_P(BlurTestCPU, BlurTest,
 
 INSTANTIATE_TEST_CASE_P(gaussBlurTestCPU, GaussianBlurTest,
                         Combine(Values(CV_8UC1, CV_8UC3, CV_16UC1, CV_16SC1, CV_32FC1),
+                        // Combine(Values(CV_16UC1, CV_16SC1, CV_32FC1),
                                 Values(cv::Size(1280, 720)),
                                 Values(-1),
                                 Values(IMGPROC_CPU),
@@ -110,6 +111,16 @@ INSTANTIATE_TEST_CASE_P(MedianBlurTestCPU, MedianBlurTest,
                                 Values(IMGPROC_CPU),
                                 Values(AbsExact().to_compare_obj()),
                                 Values(3, 5)));
+// INSTANTIATE_TEST_CASE_P(gaussBlurTestCPU_8U, GaussianBlurTest,
+//                         Combine(Values(AbsTolerance(2.0).to_compare_f()),
+//                                 Values(CV_8UC1, CV_8UC3),
+//                                 Values(3, 5),
+//                                 Values(cv::Size(1280, 720),
+//                                        cv::Size(640, 480)),
+// /*init output matrices or not*/ testing::Bool(),
+//                                 Values(cv::compile_args(IMGPROC_CPU))));
+
+
 
 INSTANTIATE_TEST_CASE_P(ErodeTestCPU, ErodeTest,
                         Combine(Values(CV_8UC1, CV_8UC3, CV_16UC1, CV_16SC1, CV_32FC1),

@@ -123,7 +123,12 @@ inline int dstChannels(int code)
         case COLOR_XYZ2BGR: case COLOR_XYZ2RGB: case COLOR_BGR2XYZ: case COLOR_RGB2XYZ:
 
             return 3;
+        case COLOR_BGR5652GRAY: case COLOR_BGR5552GRAY: case COLOR_BGR2GRAY: case COLOR_BGRA2GRAY:
+        case COLOR_RGB2GRAY: case COLOR_RGBA2GRAY: case COLOR_YUV2GRAY_420: case COLOR_RGB2YUV_YV12:
+        case COLOR_BGR2YUV_YV12: case COLOR_RGBA2YUV_YV12: case COLOR_BGRA2YUV_YV12:case COLOR_RGB2YUV_IYUV:
+        case COLOR_BGR2YUV_IYUV: case COLOR_RGBA2YUV_IYUV: case COLOR_BGRA2YUV_IYUV:
 
+            return 1;
         default:
             return 0;
     }
@@ -535,7 +540,7 @@ bool oclCvtColorBGR2ThreePlaneYUV( InputArray _src, OutputArray _dst, int bidx, 
 bool oclCvtColorYUV2Gray_420( InputArray _src, OutputArray _dst );
 
 #endif
-
+bool IsLibyuvConverterEnabled();
 void cvtColorBGR2Lab( InputArray _src, OutputArray _dst, bool swapb, bool srgb);
 void cvtColorBGR2Luv( InputArray _src, OutputArray _dst, bool swapb, bool srgb);
 void cvtColorLab2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, bool srgb );
@@ -543,7 +548,7 @@ void cvtColorLuv2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, bo
 void cvtColorBGR2XYZ( InputArray _src, OutputArray _dst, bool swapb );
 void cvtColorXYZ2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb );
 
-void cvtColorBGR2YUV( InputArray _src, OutputArray _dst, bool swapb, bool crcb);
+void cvtColorBGR2YUV( InputArray _src, OutputArray _dst, bool swapb, bool crcb, int code);
 void cvtColorYUV2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, bool crcb);
 
 void cvtColorOnePlaneYUV2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, int uidx, int ycn);
@@ -559,11 +564,11 @@ void cvtColorBGR2HSV( InputArray _src, OutputArray _dst, bool swapb, bool fullRa
 void cvtColorHLS2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, bool fullRange);
 void cvtColorHSV2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, bool fullRange);
 
-void cvtColorBGR2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb);
-void cvtColorBGR25x5( InputArray _src, OutputArray _dst, bool swapb, int gbits);
+void cvtColorBGR2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, int code);
+void cvtColorBGR25x5( InputArray _src, OutputArray _dst, bool swapb, int gbits, int code);
 void cvtColor5x52BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, int gbits);
-void cvtColorBGR2Gray( InputArray _src, OutputArray _dst, bool swapb);
-void cvtColorGray2BGR( InputArray _src, OutputArray _dst, int dcn);
+void cvtColorBGR2Gray( InputArray _src, OutputArray _dst, bool swapb, int code);
+void cvtColorGray2BGR( InputArray _src, OutputArray _dst, int dcn, int code);
 void cvtColor5x52Gray( InputArray _src, OutputArray _dst, int gbits);
 void cvtColorGray25x5( InputArray _src, OutputArray _dst, int gbits);
 void cvtColorRGBA2mRGBA(InputArray _src, OutputArray _dst);

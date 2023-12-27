@@ -91,6 +91,8 @@ CVAPI(int) cvGrabFrame( CvCapture* capture );
 */
 CVAPI(IplImage*) cvRetrieveFrame( CvCapture* capture, int streamIdx CV_DEFAULT(0) );
 
+CVAPI(bool) cvRetrieveArray( CvCapture* capture, cv::OutputArray image );
+
 /** @brief Just a combination of cvGrabFrame and cvRetrieveFrame
 
   @warning !!!DO NOT RELEASE or MODIFY the retrieved frame!!!

@@ -175,6 +175,13 @@ The function implements a sparse iterative version of the Lucas-Kanade optical f
 -   (Python) An example using the Lucas-Kanade tracker for homography matching can be found at
     opencv_source_code/samples/python/lk_homography.py
  */
+CV_EXPORTS_W void bmcpu_calcOpticalFlowPyrLK( InputArray prevImg, InputArray nextImg,
+                                        InputArray prevPts, InputOutputArray nextPts,
+                                        OutputArray status, OutputArray err,
+                                        Size winSize = Size(21,21), int maxLevel = 3,
+                                        TermCriteria criteria = TermCriteria(TermCriteria::COUNT+TermCriteria::EPS, 30, 0.01),
+                                        int flags = 0, double minEigThreshold = 1e-4 );
+
 CV_EXPORTS_W void calcOpticalFlowPyrLK( InputArray prevImg, InputArray nextImg,
                                         InputArray prevPts, InputOutputArray nextPts,
                                         OutputArray status, OutputArray err,
@@ -220,6 +227,10 @@ The function finds an optical flow for each prev pixel using the @cite Farneback
 -   (Python) An example using the optical flow algorithm described by Gunnar Farneback can be
     found at opencv_source_code/samples/python/opt_flow.py
  */
+CV_EXPORTS_W void bmcpu_calcOpticalFlowFarneback( InputArray _prev0, InputArray _next0,
+                                                  InputOutputArray _flow0, double pyr_scale, int levels, int winsize,
+                                                  int iterations, int poly_n, double poly_sigma, int flags );
+
 CV_EXPORTS_W void calcOpticalFlowFarneback( InputArray prev, InputArray next, InputOutputArray flow,
                                             double pyr_scale, int levels, int winsize,
                                             int iterations, int poly_n, double poly_sigma,

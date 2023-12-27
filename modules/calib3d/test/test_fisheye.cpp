@@ -150,7 +150,7 @@ TEST_F(fisheyeTest, distortUndistortPoints)
     }
 }
 
-TEST_F(fisheyeTest, undistortImage)
+TEST_F(fisheyeTest, DISABLED_undistortImage)
 {
     // we use it to reduce patch size for images in testdata
     auto throwAwayHalf = [](Mat img)

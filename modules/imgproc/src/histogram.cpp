@@ -946,6 +946,139 @@ static bool ipp_calchist(const Mat &image, Mat &hist, int histSize, const float*
 }
 #endif
 
+void cv::bmcpu_calcHist( const Mat* images, int nimages, const int* channels,
+                   InputArray _mask, OutputArray _hist, int dims, const int* histSize,
+                   const float** ranges, bool uniform, bool accumulate )
+{
+    CV_INSTRUMENT_REGION();
+
+#if !defined(USING_SOC) && defined(BM1684_CHIP)
+    Mat mask = _mask.getMat();
+    int depth = images[0].depth();
+    int card = images[0].card;
+    Size imsize = images[0].size();
+    int i, j, c;
+    std::vector<int> images_flag(nimages, 0);
+    int mask_flag = 0;
+    int hist_flag = 0;
+
+    /* parameter assertation */
+    CV_Assert(dims > 0 && histSize);
+    CV_Assert( mask.empty() || mask.type() == CV_8UC1 );
+    CV_Assert( channels != 0 || nimages == dims );
+    if (depth != CV_8U && depth != CV_16U && depth != CV_32F)
+        CV_Error(CV_StsUnsupportedFormat, "");
+    for( i = 0; i < dims; i++ )
+    {
+        if(!channels){
+            j = i;
+            c = 0;
+            CV_Assert( images[j].channels() == 1 );
+        }
+        else
+        {
+            c = channels[i];
+            CV_Assert( c >= 0 );
+            for( j = 0; j < nimages; c -= images[j].channels(), j++ )
+                if( c < images[j].channels() )
+                    break;
+            CV_Assert( j < nimages );
+        }
+
+        CV_Assert( images[j].size() == imsize && images[j].depth() == depth );
+    }
+
+    if( !mask.empty() )
+        CV_Assert( mask.size() == imsize && mask.channels() == 1 );
+
+    if( !ranges )
+        CV_Assert( depth == CV_8U );
+    else if( uniform )
+        for( i = 0; i < dims; i++ )
+            CV_Assert( ranges[i] && ranges[i][0] < ranges[i][1] );
+    else
+    {
+        for( i = 0; i < dims; i++ )
+        {
+            size_t n = histSize[i];
+            for(size_t k = 0; k < n; k++ )
+                CV_Assert( ranges[i][k] < ranges[i][k+1] );
+        }
+    }
+
+    Mat hist = _hist.getMat();
+    const uchar* const histdata = hist.ptr();
+    hist.create(dims, histSize, CV_32F, card);
+
+    if(histdata != hist.data)
+        accumulate = false;
+
+    for (i = 0; i < nimages; i++){
+        if ( !images[i].u || !images[i].u->addr ){
+            bmcv::attachDeviceMemory(const_cast<Mat&>(images[i]));
+            bmcv::uploadMat(const_cast<Mat &>(images[i]));
+            images_flag[i] = 1;
+        }
+    }
+    if (!mask.empty()){
+        if (!mask.u || !mask.u->addr){
+            bmcv::attachDeviceMemory(mask);
+            bmcv::uploadMat(mask);
+            mask_flag = 1;
+        }
+    }
+    if (!hist.u || !hist.u->addr){
+        bmcv::attachDeviceMemory(hist);
+        hist_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(nimages));
+    for (i = 0; i < nimages; i++)
+        CV_Assert(0 == sender.put(const_cast<Mat &>(images[i])));
+    CV_Assert(0 == sender.put(mask));
+    CV_Assert(0 == sender.put(hist));
+    CV_Assert(0 == sender.put((void *)channels, sizeof(int)*dims));
+    CV_Assert(0 == sender.put(dims));
+    CV_Assert(0 == sender.put((void *)histSize, sizeof(int)*dims));
+    CV_Assert(0 == sender.put(uniform));
+    CV_Assert(0 == sender.put(accumulate));
+    CV_Assert(0 == sender.put((void *)ranges, sizeof(float *)*dims));
+    if (ranges){
+        for (i = 0; i < dims; i++){
+            CV_Assert(0 == sender.put((void *)ranges[i], uniform ? sizeof(float)*2 : \
+                        sizeof(float)*(histSize[i]+1)));
+        }
+    }
+
+    CV_Assert(0 == sender.run("bmcpu_calcHist_array"));
+
+    for (i = 0; i < nimages; i++){
+        if ( images_flag[i] ){
+            if (images[i].u && CV_XADD(&images[i].u->refcount, -1) == 1)
+                const_cast<Mat *>(images + i)->deallocate();
+        }
+    }
+    if ( mask_flag ){
+        if (mask.u && CV_XADD(&mask.u->refcount, -1) == 1)
+            mask.deallocate();
+    }
+    if ( hist_flag ){
+        bmcv::downloadMat( hist );
+        if (hist.u && CV_XADD(&hist.u->refcount, -1) == 1)
+            hist.deallocate();
+    }
+    _hist.assign( hist );
+#else
+    cv::calcHist(images, nimages, channels, _mask, _hist, dims, histSize, ranges,
+            uniform, accumulate);
+#endif
+
+    return;
+}
+
 void cv::calcHist( const Mat* images, int nimages, const int* channels,
                    InputArray _mask, OutputArray _hist, int dims, const int* histSize,
                    const float** ranges, bool uniform, bool accumulate )
@@ -1271,6 +1404,37 @@ void cv::calcHist( const Mat* images, int nimages, const int* channels,
               ranges, uniform, accumulate, false );
 }
 
+void cv::bmcpu_calcHist( InputArrayOfArrays images, const std::vector<int>& channels,
+                         InputArray mask, OutputArray hist,
+                         const std::vector<int>& histSize,
+                         const std::vector<float>& ranges,
+                         bool accumulate )
+{
+    CV_INSTRUMENT_REGION();
+
+    int i, dims = (int)histSize.size(), rsz = (int)ranges.size(), csz = (int)channels.size();
+    int nimages = (int)images.total();
+
+    CV_Assert(nimages > 0 && dims > 0);
+    CV_Assert(rsz == dims*2 || (rsz == 0 && images.depth(0) == CV_8U));
+    CV_Assert(csz == 0 || csz == dims);
+    float* _ranges[CV_MAX_DIM];
+    if( rsz > 0 )
+    {
+        for( i = 0; i < rsz/2; i++ )
+            _ranges[i] = (float*)&ranges[i*2];
+    }
+
+    AutoBuffer<Mat> buf(nimages);
+    for( i = 0; i < nimages; i++ )
+        buf[i] = images.getMat(i);
+
+    bmcpu_calcHist(&buf[0], nimages, csz ? &channels[0] : 0,
+                   mask, hist, dims, &histSize[0], rsz ? (const float**)_ranges : 0,
+                   true, accumulate);
+
+    return;
+}
 
 void cv::calcHist( InputArrayOfArrays images, const std::vector<int>& channels,
                    InputArray mask, OutputArray hist,

@@ -42,6 +42,7 @@
 #include "precomp.hpp"
 #include <float.h>
 #include <stdio.h>
+#include <vector>
 #include "lkpyramid.hpp"
 #include "opencl_kernels_video.hpp"
 #include "opencv2/core/hal/intrin.hpp"
@@ -1408,6 +1409,128 @@ void SparsePyrLKOpticalFlowImpl::calc( InputArray _prevImg, InputArray _nextImg,
 cv::Ptr<cv::SparsePyrLKOpticalFlow> cv::SparsePyrLKOpticalFlow::create(Size winSize, int maxLevel, TermCriteria crit, int flags, double minEigThreshold){
     return makePtr<SparsePyrLKOpticalFlowImpl>(winSize,maxLevel,crit,flags,minEigThreshold);
 }
+
+void cv::bmcpu_calcOpticalFlowPyrLK( InputArray _prevImg, InputArray _nextImg,
+                               InputArray _prevPts, InputOutputArray _nextPts,
+                               OutputArray _status, OutputArray _err,
+                               Size winSize, int maxLevel,
+                               TermCriteria criteria,
+                               int flags, double minEigThreshold )
+{
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined (ENABLE_BMCPU)
+    Mat img = _prevImg.getMat();
+    Mat next_img = _nextImg.getMat();
+    std::vector<Point2f> vector_prevPts, vector_nextPts;
+    std::vector<unsigned char> vector_status;
+    std::vector<float> vector_err;
+    int nPoints;
+
+    int previmg_flag = 0, nextimg_flag = 0;
+
+    CV_Assert( maxLevel >= 0 && winSize.width > 2 && winSize.height > 2 );
+
+    Mat prevPtsMat = _prevPts.getMat();
+    CV_Assert( (nPoints = prevPtsMat.checkVector(2, CV_32F, true)) >= 0 );
+    if (nPoints == 0) return;
+
+    if( !(flags & OPTFLOW_USE_INITIAL_FLOW) )
+        _nextPts.create(prevPtsMat.size(), prevPtsMat.type(), -1, true);
+
+    Mat nextPtsMat = _nextPts.getMat();
+    CV_Assert( nextPtsMat.checkVector(2, CV_32F, true) == nPoints );
+
+    vector_prevPts = std::vector<Point2f>(prevPtsMat.ptr<Point2f>(), prevPtsMat.ptr<Point2f>()+nPoints);
+    vector_nextPts = std::vector<Point2f>(nextPtsMat.ptr<Point2f>(), nextPtsMat.ptr<Point2f>()+nPoints);
+
+    _status.create((int)nPoints, 1, CV_8U, -1, true);
+    Mat statusMat = _status.getMat(), errMat;
+    CV_Assert( statusMat.isContinuous() );
+    vector_status = std::vector<unsigned char>(statusMat.ptr(), statusMat.ptr()+nPoints);
+
+    if (_err.needed()){
+        _err.create((int)nPoints, 1, CV_32F, -1, true);
+        errMat = _err.getMat();
+        CV_Assert( errMat.isContinuous() );
+        vector_err = std::vector<float>(errMat.ptr<float>(), errMat.ptr<float>()+nPoints);
+    }
+
+    if (!img.u || !img.u->addr) {
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        previmg_flag = 1;
+    }
+    if (!next_img.u || !next_img.u->addr) {
+        bmcv::attachDeviceMemory(next_img);
+        bmcv::uploadMat(next_img);
+        nextimg_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 16384);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(next_img));
+    CV_Assert(0 == sender.put(vector_prevPts));
+    CV_Assert(0 == sender.put(winSize));
+    CV_Assert(0 == sender.put(maxLevel));
+    CV_Assert(0 == sender.put(criteria.type));
+    CV_Assert(0 == sender.put(criteria.maxCount));
+    CV_Assert(0 == sender.put(criteria.epsilon));
+    CV_Assert(0 == sender.put(flags));
+    CV_Assert(0 == sender.put(minEigThreshold));
+    CV_Assert(0 == sender.put(vector_nextPts));
+    CV_Assert(0 == sender.put(vector_status));
+    CV_Assert(0 == sender.put(vector_err));
+
+    CV_Assert(0 == sender.run("bmcpu_calcOpticalFlowPyrLK"));
+
+    CV_Assert(0 == sender.skip(img));
+    CV_Assert(0 == sender.skip(next_img));
+    CV_Assert(0 == sender.skip(vector_prevPts));
+    CV_Assert(0 == sender.skip(winSize));
+    CV_Assert(0 == sender.skip(maxLevel));
+    CV_Assert(0 == sender.skip(criteria.type));
+    CV_Assert(0 == sender.skip(criteria.maxCount));
+    CV_Assert(0 == sender.skip(criteria.epsilon));
+    CV_Assert(0 == sender.skip(flags));
+    CV_Assert(0 == sender.skip(minEigThreshold));
+    CV_Assert(0 == sender.get(vector_nextPts));
+    CV_Assert(0 == sender.get(vector_status));
+    CV_Assert(0 == sender.get(vector_err));
+
+    Point2f* nextPts = nextPtsMat.ptr<Point2f>();
+    uchar* status = statusMat.ptr();
+    for (std::vector<Point2f>::iterator iter=vector_nextPts.begin();
+            iter!=vector_nextPts.end(); ++iter)
+        *nextPts++ = *iter;
+
+    for (std::vector<unsigned char>::iterator iter=vector_status.begin();
+        iter!=vector_status.end(); ++iter)
+        *status++ = *iter;
+
+    if (_err.needed()){
+        float* err = errMat.ptr<float>();
+        for (std::vector<float>::iterator iter=vector_err.begin();
+            iter!=vector_err.end(); ++iter)
+            *err++ = *iter;
+    }
+
+    if (previmg_flag){
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1)
+            img.deallocate();
+    }
+    if (nextimg_flag){
+        if (next_img.u && CV_XADD(&next_img.u->refcount, -1) == 1)
+            next_img.deallocate();
+    }
+
+#else
+    calcOpticalFlowPyrLK(_prevImg, _nextImg, _prevPts, _nextPts,
+        _status, _err, winSize, maxLevel, criteria, flags, minEigThreshold);
+#endif
+    return;
+
+}
+
 void cv::calcOpticalFlowPyrLK( InputArray _prevImg, InputArray _nextImg,
                                InputArray _prevPts, InputOutputArray _nextPts,
                                OutputArray _status, OutputArray _err,

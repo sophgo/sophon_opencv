@@ -67,6 +67,8 @@ public:
     virtual int type() const { return m_type; }
 
     ExifEntry_t getExifTag(const ExifTagName tag) const;
+    virtual void setSoftDec(bool retrySoftDec);
+    virtual void setOutput( bool yuv_output );
     virtual bool setSource( const String& filename );
     virtual bool setSource( const Mat& buf );
     virtual int setScale( const int& scale_denom );
@@ -90,6 +92,8 @@ protected:
     Mat m_buf;
     bool m_buf_supported;
     ExifReader m_exif;
+    bool m_yuv_output;
+    bool m_retrySoftDec;
 };
 
 

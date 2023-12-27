@@ -196,7 +196,11 @@ enum {
  CV_OpenCLApiCallError=        -220, /**< OpenCL API call error */
  CV_OpenCLDoubleNotSupported=  -221,
  CV_OpenCLInitError=           -222, /**< OpenCL initialization error */
- CV_OpenCLNoAMDBlasFft=        -223
+ CV_OpenCLNoAMDBlasFft=        -223,
+ CV_HalMemErr=                 -224, /**<  ion open error */
+ CV_VppOpenErr=                -227, /**< vpp open error */
+ CV_VppIoctlErr=               -238, /**< vpp ioctl error */
+ CV_VppParamErr=               -239  /**< vpp param error */
 };
 
 /****************************************************************************************\
@@ -356,6 +360,11 @@ _IplImage
     char *imageDataOrigin;  /**< Pointer to very origin of image data
                                (not necessarily aligned) -
                                needed for correct deallocation */
+    int step;
+    int srcFmt;        /**< src input image format, 0: yuv420P(I420), 1: yuv420SP(NV12)*/
+    unsigned long addr0;        /**< Y channel data pa.                     */
+    unsigned long addr1;        /**< UV or U channel data pa.                     */
+    unsigned long addr2;        /**< V channel data pa.                     */
 
 #if defined(CV__ENABLE_C_API_CTORS) && defined(__cplusplus)
     _IplImage()

@@ -55,6 +55,8 @@
 #include <opencv2/core/utils/logger.hpp>
 #include <opencv2/core/utils/configuration.private.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include "bmlib_runtime.h"
+#define CHIP_ID_1684 0x1684
 
 
 
@@ -144,6 +146,19 @@ struct ImageCodecInitializer
         decoders.push_back( makePtr<HdrDecoder>() );
         encoders.push_back( makePtr<HdrEncoder>() );
     #endif
+
+        char *soft_jpgdec = getenv("USE_SOFT_JPGDEC");
+        char *soft_jpgenc = getenv("USE_SOFT_JPGENC");
+        int soft_jpgdec_en = 0;
+        int soft_jpgenc_en = 0;
+        if (soft_jpgdec) soft_jpgdec_en = atoi(soft_jpgdec);
+        if (soft_jpgenc) soft_jpgenc_en = atoi(soft_jpgenc);
+
+        if (!soft_jpgdec_en)
+            decoders.push_back( makePtr<BMJpegDecoder>() );
+        if (!soft_jpgenc_en)
+            encoders.push_back( makePtr<BMJpegEncoder>() );
+
     #ifdef HAVE_JPEG
         decoders.push_back( makePtr<JpegDecoder>() );
         encoders.push_back( makePtr<JpegEncoder>() );
@@ -344,27 +359,34 @@ static void ExifTransform(int orientation, Mat& img)
             break;
         case    IMAGE_ORIENTATION_TR: //0th row == visual top, 0th column == visual right-hand side
             flip(img, img, 1); //flip horizontally
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_BR: //0th row == visual bottom, 0th column == visual right-hand side
             flip(img, img, -1);//flip both horizontally and vertically
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_BL: //0th row == visual bottom, 0th column == visual left-hand side
             flip(img, img, 0); //flip vertically
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_LT: //0th row == visual left-hand side, 0th column == visual top
             transpose(img, img);
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_RT: //0th row == visual right-hand side, 0th column == visual top
             transpose(img, img);
             flip(img, img, 1); //flip horizontally
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_RB: //0th row == visual right-hand side, 0th column == visual bottom
             transpose(img, img);
             flip(img, img, -1); //flip both horizontally and vertically
+            img.fromhardware = 0;
             break;
         case    IMAGE_ORIENTATION_LB: //0th row == visual left-hand side, 0th column == visual bottom
             transpose(img, img);
             flip(img, img, 0); //flip vertically
+            img.fromhardware = 0;
             break;
         default:
             //by default the image read has normal (JPEG_ORIENTATION_TL) orientation
@@ -383,6 +405,46 @@ static void ApplyExifOrientation(ExifEntry_t orientationTag, Mat& img)
     }
 }
 
+static void FlushSoftMatMemory(Mat& mat)
+{
+    int type = mat.type();
+    if(mat.fromhardware != 1)
+    {
+        if( type == CV_8UC3 || type == CV_32FC3 || type == CV_8UC1 || type == CV_32FC1)
+        {
+#ifdef USING_SOC
+            mat.allocator = hal::getAllocator();
+            mat.allocator->invalidate(mat.u, mat.u->size);
+#else
+            bmcv::uploadMat(mat);
+#endif
+        }
+    }
+
+    return;
+}
+
+static int get_bm_chip_id(int card)
+{
+#ifdef HAVE_BMCV
+    unsigned int chipid;
+    bm_handle_t handle;
+
+    int ret = bm_dev_request(&handle, card);
+    if (ret != BM_SUCCESS) {
+        printf("Create bm handle failed. ret = %d\n", ret);
+        return -1;
+    }
+    bm_get_chipid(handle, &chipid);
+    if(handle != NULL){
+        bm_dev_free(handle);
+    }
+    return chipid;
+#else
+  return 0;
+#endif
+}
+
 /**
  * Read an image into memory and return the information
  *
@@ -392,7 +454,7 @@ static void ApplyExifOrientation(ExifEntry_t orientationTag, Mat& img)
  *
 */
 static bool
-imread_( const String& filename, int flags, Mat& mat )
+imread_( const String& filename, int flags, Mat& mat, int id)
 {
     /// Search for the relevant decoder to handle the imagery
     ImageDecoder decoder;
@@ -450,10 +512,31 @@ imread_( const String& filename, int flags, Mat& mat )
     // established the required input image size
     Size size = validateInputImageSize(Size(decoder->width(), decoder->height()));
 
+    if((flags & IMREAD_UNCHANGED_SCALE) == IMREAD_UNCHANGED_SCALE)
+    {
+        if(size.width > MAX_RESOLUTION_W || size.height > MAX_RESOLUTION_H)
+        {
+            if(CHIP_ID_1684 == get_bm_chip_id(id) ||
+              (size.width > MAX_RESOLUTION_W * 2) ||
+              (size.height > MAX_RESOLUTION_H * 2))
+            {
+                mat.rows = size.height;
+                mat.cols = size.width;
+                std::cerr << "imread_('" << filename << "'): resolution is bigger than 4K/(8K in bm1684x), unchange mode do not output decoded contents!!" << std::endl << std::flush;
+                return 0;
+            }
+        }
+    }
+
     // grab the decoded type
     int type = decoder->type();
     if( (flags & IMREAD_LOAD_GDAL) != IMREAD_LOAD_GDAL && flags != IMREAD_UNCHANGED )
     {
+        if (flags == IMREAD_AVFRAME)
+        {
+            flags |= IMREAD_COLOR;
+        }
+
         if( (flags & IMREAD_ANYDEPTH) == 0 )
             type = CV_MAKETYPE(CV_8U, CV_MAT_CN(type));
 
@@ -464,14 +547,29 @@ imread_( const String& filename, int flags, Mat& mat )
             type = CV_MAKETYPE(CV_MAT_DEPTH(type), 1);
     }
 
-    mat.create( size.height, size.width, type );
+    if((dynamic_cast< BMJpegDecoder* >((BaseImageDecoder*)decoder)) == nullptr)
+    {
+        mat.allocator = hal::getAllocator();
+        mat.create( size.height, size.width, type, id );
+    }
+    else
+    {
+        mat.card = id;
+        mat.flags |= (type & CV_MAT_TYPE_MASK);
+        if ((flags & IMREAD_AVFRAME) && (flags != IMREAD_UNCHANGED /* -1 */ ))
+            decoder->setOutput( true );
+    }
 
     // read the image data
     bool success = false;
+    if((flags & IMREAD_RETRY_SOFTDEC) != 0)
+        decoder->setSoftDec(true);
     try
     {
         if (decoder->readData(mat))
+        {
             success = true;
+        }
     }
     catch (const cv::Exception& e)
     {
@@ -503,7 +601,7 @@ imread_( const String& filename, int flags, Mat& mat )
 
 
 static bool
-imreadmulti_(const String& filename, int flags, std::vector<Mat>& mats, int start, int count)
+imreadmulti_(const String& filename, int flags, std::vector<Mat>& mats, int start, int count, int id)
 {
     /// Search for the relevant decoder to handle the imagery
     ImageDecoder decoder;
@@ -582,7 +680,17 @@ imreadmulti_(const String& filename, int flags, std::vector<Mat>& mats, int star
         Size size = validateInputImageSize(Size(decoder->width(), decoder->height()));
 
         // read the image data
-        Mat mat(size.height, size.width, type);
+        Mat mat;
+        if( (dynamic_cast< BMJpegDecoder* >((BaseImageDecoder*)decoder)) == nullptr)
+        {
+            mat.allocator = hal::getAllocator();
+            mat.create( size.height, size.width, type, id);
+        }
+        else
+        {
+            mat.card = id;
+            mat.flags |= (type & CV_MAT_TYPE_MASK);
+        }
         bool success = false;
         try
         {
@@ -606,6 +714,9 @@ imreadmulti_(const String& filename, int flags, std::vector<Mat>& mats, int star
             ApplyExifOrientation(decoder->getExifTag(ORIENTATION), mat);
         }
 
+        if (!mat.empty())
+            FlushSoftMatMemory(mat);
+
         mats.push_back(mat);
         if (!decoder->nextPage())
         {
@@ -625,7 +736,7 @@ imreadmulti_(const String& filename, int flags, std::vector<Mat>& mats, int star
  * @param[in] filename File to load
  * @param[in] flags Flags you wish to set.
 */
-Mat imread( const String& filename, int flags )
+Mat imread( const String& filename, int flags, int id)
 {
     CV_TRACE_FUNCTION();
 
@@ -633,7 +744,10 @@ Mat imread( const String& filename, int flags )
     Mat img;
 
     /// load the data
-    imread_( filename, flags, img );
+    imread_( filename, flags, img, id);
+
+    if( !img.empty() )
+        FlushSoftMatMemory(img);
 
     /// return a reference to the data
     return img;
@@ -649,19 +763,21 @@ Mat imread( const String& filename, int flags )
 * @param[in] flags Flags you wish to set.
 *
 */
-bool imreadmulti(const String& filename, std::vector<Mat>& mats, int flags)
+bool imreadmulti(const String& filename, std::vector<Mat>& mats, int flags, String id)
 {
     CV_TRACE_FUNCTION();
+    int i_id = atoi(id.c_str());
 
-    return imreadmulti_(filename, flags, mats, 0, -1);
+    return imreadmulti_(filename, flags, mats, 0, -1, i_id);
 }
 
 
-bool imreadmulti(const String& filename, std::vector<Mat>& mats, int start, int count, int flags)
+bool imreadmulti(const String& filename, std::vector<Mat>& mats, int start, int count, int flags, String id)
 {
     CV_TRACE_FUNCTION();
+    int i_id = atoi(id.c_str());
 
-    return imreadmulti_(filename, flags, mats, start, count);
+    return imreadmulti_(filename, flags, mats, start, count, i_id);
 }
 
 static
@@ -797,7 +913,7 @@ bool imwrite( const String& filename, InputArray _img,
 }
 
 static bool
-imdecode_( const Mat& buf, int flags, Mat& mat )
+imdecode_( const Mat& buf, int flags, Mat& mat, int id)
 {
     CV_Assert(!buf.empty());
     CV_Assert(buf.isContinuous());
@@ -873,9 +989,30 @@ imdecode_( const Mat& buf, int flags, Mat& mat )
     // established the required input image size
     Size size = validateInputImageSize(Size(decoder->width(), decoder->height()));
 
+    if((flags & IMREAD_UNCHANGED_SCALE) == IMREAD_UNCHANGED_SCALE)
+    {
+        if(size.width > MAX_RESOLUTION_W || size.height > MAX_RESOLUTION_H)
+        {
+            if(CHIP_ID_1684 == get_bm_chip_id(id) ||
+              (size.width > MAX_RESOLUTION_W * 2) ||
+              (size.height > MAX_RESOLUTION_H * 2))
+            {
+                mat.rows = size.height;
+                mat.cols = size.width;
+                std::cerr << "imread_('" << filename << "'): resolution is bigger than 4K/(8K in bm1684x), unchange mode do not output decoded contents!!" << std::endl << std::flush;
+                return 0;
+            }
+        }
+    }
+
     int type = decoder->type();
     if( (flags & IMREAD_LOAD_GDAL) != IMREAD_LOAD_GDAL && flags != IMREAD_UNCHANGED )
     {
+        if (flags == IMREAD_AVFRAME)
+        {
+            flags |= IMREAD_COLOR;
+        }
+
         if( (flags & IMREAD_ANYDEPTH) == 0 )
             type = CV_MAKETYPE(CV_8U, CV_MAT_CN(type));
 
@@ -886,13 +1023,28 @@ imdecode_( const Mat& buf, int flags, Mat& mat )
             type = CV_MAKETYPE(CV_MAT_DEPTH(type), 1);
     }
 
-    mat.create( size.height, size.width, type );
+    if((dynamic_cast< BMJpegDecoder* >((BaseImageDecoder*)decoder)) == nullptr)
+    {
+        mat.allocator = hal::getAllocator();
+        mat.create(size.height, size.width, type, id);
+    }
+    else
+    {
+        mat.card = id;
+        mat.flags |= (type & CV_MAT_TYPE_MASK);
+        if ((flags & IMREAD_AVFRAME) && (flags != IMREAD_UNCHANGED /* -1 */ ))
+            decoder->setOutput( true );
+    }
 
     success = false;
+    if((flags & IMREAD_RETRY_SOFTDEC) != 0)
+        decoder->setSoftDec(true);
     try
     {
         if (decoder->readData(mat))
+        {
             success = true;
+        }
     }
     catch (const cv::Exception& e)
     {
@@ -932,23 +1084,29 @@ imdecode_( const Mat& buf, int flags, Mat& mat )
 }
 
 
-Mat imdecode( InputArray _buf, int flags )
+Mat imdecode( InputArray _buf, int flags, int id)
 {
     CV_TRACE_FUNCTION();
 
     Mat buf = _buf.getMat(), img;
-    imdecode_( buf, flags, img );
+    imdecode_( buf, flags, img, id);
+
+    if( !img.empty() )
+        FlushSoftMatMemory(img);
 
     return img;
 }
 
-Mat imdecode( InputArray _buf, int flags, Mat* dst )
+Mat imdecode( InputArray _buf, int flags, Mat* dst, int id)
 {
     CV_TRACE_FUNCTION();
 
     Mat buf = _buf.getMat(), img;
     dst = dst ? dst : &img;
-    imdecode_( buf, flags, *dst );
+    imdecode_( buf, flags, *dst, id);
+
+    if (!dst->empty())
+        FlushSoftMatMemory(*dst);
 
     return *dst;
 }

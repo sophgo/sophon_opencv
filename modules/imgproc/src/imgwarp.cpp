@@ -2703,6 +2703,80 @@ void warpAffine(int src_type,
 } // hal::
 } // cv::
 
+void cv::bmcpu_warpAffine( InputArray _src, OutputArray _dst,
+                           InputArray _M0, Size dsize,
+                           int flags, int borderType, const Scalar& borderValue )
+{
+    CV_INSTRUMENT_REGION();
+
+#if !defined(USING_SOC) && defined(BM1684_CHIP)
+    int interpolation = flags & INTER_MAX;
+    CV_Assert( _src.channels() <= 4 || (interpolation != INTER_LANCZOS4 &&
+                                        interpolation != INTER_CUBIC) );
+
+    Mat src = _src.getMat(), M0 = _M0.getMat();
+    Mat dst = _dst.getMat();
+    int card = src.card;
+    int src_flag = 0, dst_flag = 0, m0_flag = 0;
+
+    CV_Assert( src.cols > 0 && src.rows > 0 );
+    CV_Assert( (M0.type() == CV_32F || M0.type() == CV_64F) && M0.rows == 2 && M0.cols == 3 );
+
+    dst.create( dsize.empty() ? src.size() : dsize, src.type(), card );
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    if (!M0.u || !M0.u->addr){
+        M0.card = card;
+        bmcv::attachDeviceMemory(M0);
+        bmcv::uploadMat(M0);
+        m0_flag = 1;
+    }
+
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(M0));
+    CV_Assert(0 == sender.put(dsize));
+    CV_Assert(0 == sender.put(flags));
+    CV_Assert(0 == sender.put(borderType));
+    CV_Assert(0 == sender.put(const_cast<Scalar &>(borderValue)));
+
+    CV_Assert(0 == sender.run("bmcpu_warpAffine"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+    if (m0_flag){
+        if (M0.u && CV_XADD(&M0.u->refcount, -1) == 1)
+            M0.deallocate();
+    }
+
+    _dst.assign(dst);
+
+#else
+    warpAffine(_src, _dst, _M0, dsize, flags, borderType, borderValue);
+#endif
+
+    return;
+}
 
 void cv::warpAffine( InputArray _src, OutputArray _dst,
                      InputArray _M0, Size dsize,

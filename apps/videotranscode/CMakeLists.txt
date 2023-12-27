@@ -1,0 +1,1 @@
+ocv_add_application(videotranscode MODULES opencv_core opencv_videoio opencv_highgui SRCS opencv-videotranscode.cpp)

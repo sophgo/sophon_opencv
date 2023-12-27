@@ -1,0 +1,1 @@
+ocv_add_application(cvtcolortest MODULES opencv_core opencv_imgproc opencv_highgui SRCS cvtColortest.cpp)

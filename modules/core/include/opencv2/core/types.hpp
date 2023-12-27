@@ -68,6 +68,16 @@ namespace cv
 //! @addtogroup core_basic
 //! @{
 
+class SophonDevice
+{
+public:
+    SophonDevice();
+    explicit SophonDevice(int idx);
+    int getSophonIdx();
+private:
+    int sophon_idx;
+};
+
 //////////////////////////////// Complex //////////////////////////////
 
 /** @brief  A complex number class.
@@ -1018,6 +1028,18 @@ struct Type< Moments > { enum { value = CV_MAKETYPE(Depth<double>::value, (int)(
 /////////////////////////////////////////////////////////////////////////
 ///////////////////////////// Implementation ////////////////////////////
 /////////////////////////////////////////////////////////////////////////
+
+inline
+SophonDevice::SophonDevice():sophon_idx(0)
+{}
+inline
+SophonDevice::SophonDevice(int idx):sophon_idx(idx)
+{}
+inline
+int SophonDevice::getSophonIdx()
+{
+   return sophon_idx;
+}
 
 //////////////////////////////// Complex ////////////////////////////////
 

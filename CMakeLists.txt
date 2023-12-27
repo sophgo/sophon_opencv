@@ -17,6 +17,22 @@ endif()
 
 include(cmake/OpenCVMinDepVersions.cmake)
 
+option(CHIP "Target chip name" bm1682)
+set_property(CACHE CHIP PROPERTY STRINGS bm1680 bm1682 bm1880 bm1684)
+
+option(SUBTYPE "Target device name" asic)
+set_property(CACHE SUBTYPE PROPERTY STRINGS asic box)
+
+option(PRODUCTFORM "Target platform name" soc)
+set_property(CACHE PRODUCTFORM PROPERTY STRINGS soc pcie)
+
+option(ENABLE_BMCPU "Enable CPU on board" OFF)
+set_property(CACHE ENABLE_BMCPU PROPERTY TYPE BOOL)
+
+if(${ENABLE_BMCPU} AND ${CHIP} STREQUAL "bm1684" AND ${PRODUCTFORM} STREQUAL "soc")
+  set(BUILD_opencv_world ON CACHE INTERNAL "")
+endif()
+
 if(CMAKE_SYSTEM_NAME MATCHES WindowsPhone OR CMAKE_SYSTEM_NAME MATCHES WindowsStore)
   cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
   #Required to resolve linker error issues due to incompatibility with CMake v3.0+ policies.
@@ -25,6 +41,10 @@ if(CMAKE_SYSTEM_NAME MATCHES WindowsPhone OR CMAKE_SYSTEM_NAME MATCHES WindowsSt
   cmake_policy(VERSION 2.8)
 else()
   cmake_minimum_required(VERSION "${MIN_VER_CMAKE}" FATAL_ERROR)
+endif()
+
+if("${ABI_FLAG}" STREQUAL "0")
+  add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 endif()
 
 #
@@ -208,6 +228,9 @@ if(MINGW)
       list(APPEND CMAKE_INCLUDE_PATH /mingw64)
   endif()
 endif()
+
+set(CMAKE_LIBRARY_PATH "")
+set(CMAKE_INCLUDE_PATH "")
 
 # ----------------------------------------------------------------------------
 # OpenCV cmake options
@@ -868,6 +891,10 @@ if(WITH_ONNX)
   include(cmake/FindONNX.cmake)
 endif()
 
+include(cmake/OpenCVFindBM.cmake)
+include_directories(${FFMPEG_INCLUDE_DIRS})
+link_directories(${FFMPEG_LIBRARY_DIRS})
+
 # ----------------------------------------------------------------------------
 # OpenCV HAL
 # ----------------------------------------------------------------------------
@@ -1132,6 +1159,11 @@ if(CMAKE_GENERATOR MATCHES "Xcode|Visual Studio|Multi-Config")
 else()
   status("    Configuration:"  ${CMAKE_BUILD_TYPE})
 endif()
+status("    CHIP:"              ${CHIP})
+status("    SUBTYPE:"           ${SUBTYPE})
+status("    PRODUCTFORM:"       ${PRODUCTFORM})
+status("    ENABLE_BMCPU:"      ${ENABLE_BMCPU} THEN YES ELSE NO)
+status("    opencv world:"      ${BUILD_opencv_world} THEN YES ELSE NO)
 
 
 # ========================= CPU code generation mode =========================
@@ -1469,11 +1501,11 @@ if(WITH_FFMPEG OR HAVE_FFMPEG)
   else()
     status("    FFMPEG:"       HAVE_FFMPEG         THEN YES ELSE NO)
   endif()
-  status("      avcodec:"      FFMPEG_libavcodec_VERSION    THEN "YES (${FFMPEG_libavcodec_VERSION})"    ELSE NO)
-  status("      avformat:"     FFMPEG_libavformat_VERSION   THEN "YES (${FFMPEG_libavformat_VERSION})"   ELSE NO)
-  status("      avutil:"       FFMPEG_libavutil_VERSION     THEN "YES (${FFMPEG_libavutil_VERSION})"     ELSE NO)
-  status("      swscale:"      FFMPEG_libswscale_VERSION    THEN "YES (${FFMPEG_libswscale_VERSION})"    ELSE NO)
-  status("      avresample:"   FFMPEG_libavresample_VERSION THEN "YES (${FFMPEG_libavresample_VERSION})" ELSE NO)
+  # status("      avcodec:"      FFMPEG_libavcodec_VERSION    THEN "YES (${FFMPEG_libavcodec_VERSION})"    ELSE NO)
+  # status("      avformat:"     FFMPEG_libavformat_VERSION   THEN "YES (${FFMPEG_libavformat_VERSION})"   ELSE NO)
+  # status("      avutil:"       FFMPEG_libavutil_VERSION     THEN "YES (${FFMPEG_libavutil_VERSION})"     ELSE NO)
+  # status("      swscale:"      FFMPEG_libswscale_VERSION    THEN "YES (${FFMPEG_libswscale_VERSION})"    ELSE NO)
+  # status("      avresample:"   FFMPEG_libavresample_VERSION THEN "YES (${FFMPEG_libavresample_VERSION})" ELSE NO)
   if(OPENCV_FFMPEG_ENABLE_LIBAVDEVICE)
     status("      avdevice:"     FFMPEG_libavdevice_VERSION   THEN "YES (${FFMPEG_libavdevice_VERSION})"   ELSE NO)
   endif()

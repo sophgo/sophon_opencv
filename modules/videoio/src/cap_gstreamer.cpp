@@ -161,7 +161,6 @@ public:
 
     inline GSafePtr& reset(T* p) CV_NOEXCEPT // pass result of functions with "transfer floating" ownership
     {
-        //printf("reset: %s:%d: %p\n", CV__TRACE_FUNCTION, __LINE__, p);
         release();
         if (p)
         {
@@ -173,7 +172,6 @@ public:
 
     inline GSafePtr& attach(T* p) CV_NOEXCEPT  // pass result of functions with "transfer full" ownership
     {
-        //printf("attach: %s:%d: %p\n", CV__TRACE_FUNCTION, __LINE__, p);
         release(); ptr = p; return *this;
     }
     inline T* detach() CV_NOEXCEPT { T* p = ptr; ptr = NULL; return p; }
@@ -2106,7 +2104,7 @@ bool GStreamerCapture::setProperty(int propId, double value)
 }
 
 
-Ptr<IVideoCapture> createGStreamerCapture_file(const String& filename, const cv::VideoCaptureParameters& params)
+Ptr<IVideoCapture> createGStreamerCapture_file(const String& filename, const cv::VideoCaptureParameters& params, int id)
 {
     Ptr<GStreamerCapture> cap = makePtr<GStreamerCapture>();
     if (cap && cap->open(filename, params))
@@ -2699,7 +2697,8 @@ double CvVideoWriter_GStreamer::getProperty(int propId) const
 }
 
 Ptr<IVideoWriter> create_GStreamer_writer(const std::string& filename, int fourcc, double fps,
-                                          const cv::Size& frameSize, const VideoWriterParameters& params)
+                                          const cv::Size& frameSize, const VideoWriterParameters& params,
+                                          const std::string &encodeParams)
 {
     CvVideoWriter_GStreamer* wrt = new CvVideoWriter_GStreamer;
     try
@@ -2857,7 +2856,7 @@ CvResult CV_API_CALL cv_capture_open_with_params(
 }
 
 static
-CvResult CV_API_CALL cv_capture_open(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle)
+CvResult CV_API_CALL cv_capture_open(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle, int id = 0)
 {
     return cv_capture_open_with_params(filename, camera_index, NULL, 0, handle);
 }
@@ -2972,7 +2971,7 @@ static
 CvResult CV_API_CALL cv_writer_open_with_params(
         const char* filename, int fourcc, double fps, int width, int height,
         int* params, unsigned n_params,
-        CV_OUT CvPluginWriter* handle)
+        CV_OUT CvPluginWriter* handle, int id = 0)
 {
     CvVideoWriter_GStreamer* wrt = 0;
     try

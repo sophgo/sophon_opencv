@@ -28,17 +28,21 @@ typedef struct CvVideoWriter_FFMPEG CvVideoWriter_FFMPEG;
 OPENCV_FFMPEG_API int cvSetCaptureProperty_FFMPEG(struct CvCapture_FFMPEG* cap,
                                                   int prop, double value);
 OPENCV_FFMPEG_API double cvGetCaptureProperty_FFMPEG(struct CvCapture_FFMPEG* cap, int prop);
-OPENCV_FFMPEG_API int cvGrabFrame_FFMPEG(struct CvCapture_FFMPEG* cap);
+OPENCV_FFMPEG_API int cvGrabFrame_FFMPEG(struct CvCapture_FFMPEG* cap, char *buf=NULL, unsigned int len_in=0, unsigned int *len_out= NULL);
 OPENCV_FFMPEG_API int cvRetrieveFrame_FFMPEG(struct CvCapture_FFMPEG* capture, unsigned char** data,
                                              int* step, int* width, int* height, int* cn);
-OPENCV_FFMPEG_API int cvRetrieveFrame2_FFMPEG(struct CvCapture_FFMPEG* capture, unsigned char** data,
-                                              int* step, int* width, int* height, int* cn, int* depth);
+OPENCV_FFMPEG_API int cvRetrieveFrame2_FFMPEG(struct CvCapture_FFMPEG* capture, cv::OutputArray frame);
+// OPENCV_FFMPEG_API int cvRetrieveFrame2_FFMPEG(struct CvCapture_FFMPEG* capture, unsigned char** data,
+//                                               int* step, int* width, int* height, int* cn, int* depth);
 OPENCV_FFMPEG_API void cvReleaseCapture_FFMPEG(struct CvCapture_FFMPEG** cap);
 
 OPENCV_FFMPEG_API struct CvVideoWriter_FFMPEG* cvCreateVideoWriter_FFMPEG(const char* filename,
-            int fourcc, double fps, int width, int height, int isColor );
+            int fourcc, double fps, int width, int height, int isColor, int id=0, const char* encodeParams="" );
 OPENCV_FFMPEG_API int cvWriteFrame_FFMPEG(struct CvVideoWriter_FFMPEG* writer, const unsigned char* data,
                                           int step, int width, int height, int cn, int origin);
+OPENCV_FFMPEG_API int cvWriteFrameByHd_FFMPEG(struct CvVideoWriter_FFMPEG* writer, cv::InputArray image);
+OPENCV_FFMPEG_API int cvWriteFrameByHdOutbuf_FFMPEG(struct CvVideoWriter_FFMPEG* writer, cv::InputArray image,char *data, int *len);
+OPENCV_FFMPEG_API int cvWriteFrameByHdOutbufRoi_FFMPEG(struct CvVideoWriter_FFMPEG* writer, cv::InputArray image,char *data, int *len, void *roiinfo);
 OPENCV_FFMPEG_API void cvReleaseVideoWriter_FFMPEG(struct CvVideoWriter_FFMPEG** writer);
 
 #ifdef __cplusplus

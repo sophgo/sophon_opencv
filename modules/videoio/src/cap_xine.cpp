@@ -346,7 +346,7 @@ protected:
     }
 };
 
-Ptr<IVideoCapture> cv::createXINECapture(const std::string &filename)
+Ptr<IVideoCapture> cv::createXINECapture(const std::string &filename, int id)
 {
     Ptr<XINECapture> res = makePtr<XINECapture>();
     if (res && res->open(filename.c_str()))

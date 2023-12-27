@@ -11,6 +11,9 @@
 #include "color_rgb.simd_declarations.hpp" // defines CV_CPU_DISPATCH_MODES_ALL=AVX2,...,BASELINE based on CMakeLists.txt content
 
 #define IPP_DISABLE_CVTCOLOR_GRAY2BGR_8UC3 1
+#ifdef HAVE_LIBYUV
+#include "libyuv.h"
+#endif
 
 namespace cv {
 
@@ -547,17 +550,68 @@ bool oclCvtColormRGBA2RGBA( InputArray _src, OutputArray _dst)
 // HAL calls
 //
 
-void cvtColorBGR2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb)
+void cvtColorBGR2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, int code)
 {
     CvtHelper< Set<3, 4>, Set<3, 4>, Set<CV_8U, CV_16U, CV_32F> > h(_src, _dst, dcn);
 
-    hal::cvtBGRtoBGR(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
-                     h.depth, h.scn, dcn, swapb);
+#ifdef HAVE_LIBYUV
+    if (IsLibyuvConverterEnabled())
+    {
+        if (_src.type() == CV_8UC3 && code == COLOR_RGB2BGR)
+        {
+            libyuv::RAWToRGB24(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_BGR2BGRA)
+        {
+            libyuv::RGB24ToARGB(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC4 && code == COLOR_BGRA2BGR)
+        {
+            libyuv::ARGBToRGB24(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_RGB2BGRA)
+        {
+            libyuv::RAWToARGB(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if(_src.type() == CV_8UC4 && code == COLOR_BGRA2RGBA)
+        {
+            libyuv::ABGRToARGB(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else
+            hal::cvtBGRtoBGR(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                             h.depth, h.scn, dcn, swapb);
+    }
+    else
+#endif
+        hal::cvtBGRtoBGR(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                         h.depth, h.scn, dcn, swapb);
 }
 
-void cvtColorBGR25x5( InputArray _src, OutputArray _dst, bool swapb, int gbits)
+void cvtColorBGR25x5( InputArray _src, OutputArray _dst, bool swapb, int gbits, int code)
 {
     CvtHelper< Set<3, 4>, Set<2>, Set<CV_8U> > h(_src, _dst, 2);
+
+#ifdef  HAVE_LIBYUV
+    if (IsLibyuvConverterEnabled())
+    {
+        if (_src.type() == CV_8UC4 && code == COLOR_BGRA2BGR565)
+        {
+            libyuv::ARGBToRGB565(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_BGR2BGR565)
+        {
+            libyuv::RGBToRGB565(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_RGB2BGR565)
+        {
+            libyuv::RGBToBGR565(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else
+            hal::cvtBGRtoBGR5x5(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                                h.scn, swapb, gbits);
+    }
+    else
+#endif
 
     hal::cvtBGRtoBGR5x5(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
                         h.scn, swapb, gbits);
@@ -572,19 +626,50 @@ void cvtColor5x52BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, in
                         dcn, swapb, gbits);
 }
 
-void cvtColorBGR2Gray( InputArray _src, OutputArray _dst, bool swapb)
+void cvtColorBGR2Gray( InputArray _src, OutputArray _dst, bool swapb, int code)
 {
     CvtHelper< Set<3, 4>, Set<1>, Set<CV_8U, CV_16U, CV_32F> > h(_src, _dst, 1);
 
-    hal::cvtBGRtoGray(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
-                      h.depth, h.scn, swapb);
+#ifdef HAVE_LIBYUV
+    if (IsLibyuvConverterEnabled())
+    {
+        if (_src.type() == CV_8UC3 && code == COLOR_RGB2GRAY)
+        {
+            libyuv::RAWToJ400(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC3 && code == COLOR_BGR2GRAY)
+        {
+            libyuv::RGB24ToJ400(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC4 && code == COLOR_RGBA2GRAY)
+        {
+            libyuv::ABGRToJ400(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else if (_src.type() == CV_8UC4 && code == COLOR_BGRA2GRAY)
+        {
+            libyuv::ARGBToJ400(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+        }
+        else
+            hal::cvtBGRtoGray(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                              h.depth, h.scn, swapb);
+    }
+    else
+#endif
+        hal::cvtBGRtoGray(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
+                          h.depth, h.scn, swapb);
 }
 
-void cvtColorGray2BGR( InputArray _src, OutputArray _dst, int dcn)
+void cvtColorGray2BGR( InputArray _src, OutputArray _dst, int dcn, int code)
 {
     if(dcn <= 0) dcn = 3;
-    CvtHelper< Set<1>, Set<3, 4>, Set<CV_8U, CV_16U, CV_32F> > h(_src, _dst, dcn);
 
+    CvtHelper< Set<1>, Set<3, 4>, Set<CV_8U, CV_16U, CV_32F> > h(_src, _dst, dcn);
+#ifdef HAVE_LIBYUV
+    if (_src.type() == CV_8UC1 && code == COLOR_GRAY2BGR && IsLibyuvConverterEnabled())
+    {
+        libyuv::J400ToRAW(h.src.data, h.src.step[0], h.dst.data,h.dst.step[0], h.src.cols, h.src.rows);
+    }
+#endif
     hal::cvtGraytoBGR(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows, h.depth, dcn);
 }
 

@@ -72,6 +72,96 @@ PolyLine( Mat& img, const Point2l* v, int npts, bool closed,
 static void
 FillConvexPoly( Mat& img, const Point2l* v, int npts,
                 const void* color, int line_type, int shift );
+#define SUPPORTDRAWYUV
+#ifdef SUPPORTDRAWYUV
+static const int ITUR_BT_601_SHIFT = 20;
+static const int ITUR_BT_601_CRY =  269484;
+static const int ITUR_BT_601_CGY =  528482;
+static const int ITUR_BT_601_CBY =  102760;
+static const int ITUR_BT_601_CRU = -155188;
+static const int ITUR_BT_601_CGU = -305135;
+static const int ITUR_BT_601_CBU =  460324;
+static const int ITUR_BT_601_CGV = -385875;
+static const int ITUR_BT_601_CBV = -74448;
+
+static inline uchar rgbToY42x(uchar r, uchar g, uchar b)
+{
+    const int shifted16 = (16 << ITUR_BT_601_SHIFT);
+    const int halfShift = (1 << (ITUR_BT_601_SHIFT - 1));
+    int yy = ITUR_BT_601_CRY * r + ITUR_BT_601_CGY * g + ITUR_BT_601_CBY * b + halfShift + shifted16;
+
+    return saturate_cast<uchar>(yy >> ITUR_BT_601_SHIFT);
+}
+
+static inline void rgbToUV42x(uchar r, uchar g, uchar b, uchar& u, uchar& v)
+{
+    const int halfShift = (1 << (ITUR_BT_601_SHIFT - 1));
+    const int shifted128 = (128 << ITUR_BT_601_SHIFT);
+    int uu = ITUR_BT_601_CRU * r + ITUR_BT_601_CGU * g + ITUR_BT_601_CBU * b + halfShift + shifted128;
+    int vv = ITUR_BT_601_CBU * r + ITUR_BT_601_CGV * g + ITUR_BT_601_CBV * b + halfShift + shifted128;
+
+    u = saturate_cast<uchar>(uu >> ITUR_BT_601_SHIFT);
+    v = saturate_cast<uchar>(vv >> ITUR_BT_601_SHIFT);
+}
+
+void inline fill16bit(uchar* buffer, uchar u,uchar v, int size)
+{
+   for(int i = 0; i < size; i++)
+   {
+       *(buffer+i*2)=u;
+       *(buffer+i*2+1)=v;
+   }
+}
+
+static void fillYuvRow(Mat &img,uchar y, uchar u,uchar v, int starty ,int startx, int fillen)
+{
+   if(img.avOK())
+   {
+
+        if (img.avFormat() == AV_PIX_FMT_GRAY8 && img.avAddr(0)!= 0)
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+        }
+        else if (img.avFormat() == AV_PIX_FMT_YUV444P && img.avAddr(0)!= 0 && img.avAddr(1)!= 0 &&img.avAddr(2)!= 0)
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+            memset((uchar *)img.avAddr(1)+starty*img.avStep(1)+startx,u,fillen);
+            memset((uchar *)img.avAddr(2)+starty*img.avStep(2)+startx,v,fillen);
+        }
+        else if (img.avFormat() == AV_PIX_FMT_YUV422P && img.avAddr(0)!= 0 && img.avAddr(1)!= 0 &&img.avAddr(2)!= 0)
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+            memset((uchar *)img.avAddr(1)+starty*img.avStep(1)+startx/2,u,fillen/2);
+            memset((uchar *)img.avAddr(2)+starty*img.avStep(2)+startx/2,v,fillen/2);
+        }
+        else if (img.avFormat() == AV_PIX_FMT_YUV420P && img.avAddr(0)!= 0 && img.avAddr(1)!= 0 &&img.avAddr(2)!= 0)
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+            memset((uchar *)img.avAddr(1)+(starty/2)*img.avStep(1)+startx/2,u,fillen/2);
+            memset((uchar *)img.avAddr(2)+(starty/2)*img.avStep(2)+startx/2,v,fillen/2);
+        }
+        else if (img.avFormat() == AV_PIX_FMT_NV12 && img.avAddr(0)!= 0 && img.avAddr(1)!= 0 )
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+            fill16bit((uchar *)img.avAddr(1)+(starty/2)*img.avStep(1)+(startx/2)*2, u, v, fillen/2);
+        }
+        else if (img.avFormat() == AV_PIX_FMT_NV16 && img.avAddr(0)!= 0 && img.avAddr(1)!= 0 )
+        {
+            memset((uchar *)img.avAddr(0)+starty*img.avStep(0)+startx,y,fillen);
+            fill16bit((uchar *)img.avAddr(1)+starty*img.avStep(1)+(startx/2)*2, u, v, fillen/2);
+        }
+        else
+        {
+            printf("rectangle fuc can't support  format=%d,avAddr(0)=%lu,avAddr(1)=%lu,avAddr(2)=%lu,  \n",
+                img.avFormat(),img.avAddr(0),img.avAddr(1),img.avAddr(2));
+            return;
+        }
+
+        return;
+   }
+}
+
+#endif
 
 /****************************************************************************************\
 *                                   Lines                                                *
@@ -156,7 +246,7 @@ bool clipLine( Rect img_rect, Point& pt1, Point& pt2 )
     return inside;
 }
 
-void LineIterator::init( const Mat* img, Rect rect, Point pt1_, Point pt2_, int connectivity, bool leftToRight )
+void LineIterator::init( const Mat* img, Rect rect, Point pt1_, Point pt2_, int connectivity, bool leftToRight, int img_yuvtype)
 {
     CV_Assert( connectivity == 8 || connectivity == 4 );
 
@@ -169,13 +259,51 @@ void LineIterator::init( const Mat* img, Rect rect, Point pt1_, Point pt2_, int 
     Point pt1 = pt1_ - rect.tl();
     Point pt2 = pt2_ - rect.tl();
 
-    if( (unsigned)pt1.x >= (unsigned)(rect.width) ||
+    if( ptmode && (unsigned)pt1.x >= (unsigned)(rect.width) ||
         (unsigned)pt2.x >= (unsigned)(rect.width) ||
         (unsigned)pt1.y >= (unsigned)(rect.height) ||
         (unsigned)pt2.y >= (unsigned)(rect.height) )
     {
         if( !clipLine(Size(rect.width, rect.height), pt1, pt2) )
         {
+            err = plusDelta = minusDelta = plusStep = minusStep = plusShift = minusShift = count = 0;
+            return;
+        }
+    }
+
+    if ( !ptmode && ((img_yuvtype == 0)
+               && ((unsigned)pt1.x >= (unsigned)(img->cols) ||
+                   (unsigned)pt2.x >= (unsigned)(img->cols) ||
+                   (unsigned)pt1.y >= (unsigned)(img->rows) ||
+                   (unsigned)pt2.y >= (unsigned)(img->rows)))  ||
+        (((img_yuvtype == 1) || (img_yuvtype == 2))
+               && ((unsigned)pt1.x >= (unsigned)(img->cols/2) ||
+                   (unsigned)pt2.x >= (unsigned)(img->cols/2) ||
+                   (unsigned)pt1.y >= (unsigned)(img->rows/2) ||
+                   (unsigned)pt2.y >= (unsigned)(img->rows/2))) )
+    {
+        Size img_size = img->size();
+        if(img->avOK() && ((img_yuvtype == 1)||(img_yuvtype == 2)))
+        {
+            img_size.width = img_size.width/2;
+            img_size.height= img_size.height/2;
+        }
+
+        if( !clipLine( img_size, pt1, pt2 ) )
+        {
+            if(img->avOK())
+            {
+                if(img_yuvtype == 0)
+                    ptr = (uchar*)img->u->frame->data[0];
+                else if(img_yuvtype == 1)
+                    ptr = (uchar*)img->u->frame->data[1];
+                else if(img_yuvtype == 2)
+                    ptr = (uchar*)img->u->frame->data[2];
+            }
+            else
+            {
+                ptr = img->data;
+            }
             err = plusDelta = minusDelta = plusStep = minusStep = plusShift = minusShift = count = 0;
             return;
         }
@@ -251,9 +379,28 @@ void LineIterator::init( const Mat* img, Rect rect, Point pt1_, Point pt2_, int 
     if( !ptmode )
     {
         ptr0 = img->ptr();
-        step = (int)img->step;
+        if(img->avOK() &&((img_yuvtype == 1)||(img_yuvtype == 2)))
+        {
+            step = img->u->frame->linesize[1];
+        }
+        else
+        {
+            step = (int)img->step;
+        }
+        if(img->avOK())
+        {
+            if(img_yuvtype == 0)
+                ptr = (uchar*)(img->u->frame->data[0] + pt1.y * step + pt1.x);
+            else if(img_yuvtype == 1)
+                ptr = (uchar*)(img->u->frame->data[1] + pt1.y * step + pt1.x);
+            else if(img_yuvtype == 2)
+                ptr = (uchar*)(img->u->frame->data[2] + pt1.y * step + pt1.x);
+        }
+        else
+        {
+            ptr = (uchar*)(img->data + pt1.y * step + pt1.x * img->elemSize());
+        }
         elemSize = (int)img->elemSize();
-        ptr = (uchar*)ptr0 + (size_t)p.y*step + (size_t)p.x*elemSize;
         plusStep = plusStep*step + plusShift*elemSize;
         minusStep = minusStep*step + minusShift*elemSize;
     }
@@ -268,7 +415,7 @@ Line( Mat& img, Point pt1, Point pt2,
     else if( connectivity == 1 )
         connectivity = 4;
 
-    LineIterator iterator(img, pt1, pt2, connectivity, true);
+    LineIterator iterator(img, pt1, pt2, connectivity, true, 0);
     int i, count = iterator.count;
     int pix_size = (int)img.elemSize();
     const uchar* color = (const uchar*)_color;
@@ -292,6 +439,28 @@ Line( Mat& img, Point pt1, Point pt2,
                 ptr[0] = color[0];
             else
                 memcpy( *iterator, color, pix_size );
+        }
+    }
+    if(img.avOK())
+    {
+        Point pt1_;
+        pt1_.x = pt1.x/2;
+        pt1_.y = pt1.y/2;
+        Point pt2_;
+        pt2_.x = pt2.x/2;
+        pt2_.y = pt2.y/2;
+
+        uchar* ptrU  = NULL;
+        uchar* ptrV  = NULL;
+        LineIterator iteratorU(img, pt1_, pt2_, connectivity, true,1);
+        LineIterator iteratorV(img, pt1_, pt2_, connectivity, true,2);
+        count = iteratorU.count;
+        for( i = 0; i < count; i++, ++iteratorU,++iteratorV )
+        {
+            ptrU = *iteratorU;
+            ptrV = *iteratorV;
+            ptrU[0] = color[1];
+            ptrV[0] = color[2];
         }
     }
 }
@@ -324,7 +493,22 @@ LineAA( Mat& img, Point2l pt1, Point2l pt2, const void* color )
     int cb = ((uchar*)color)[0], cg = ((uchar*)color)[1], cr = ((uchar*)color)[2], ca = ((uchar*)color)[3];
     int _cb, _cg, _cr, _ca;
     int nch = img.channels();
-    uchar* ptr = img.ptr();
+
+    uchar *ptr = NULL;
+    uchar *ptry = NULL;
+    uchar *ptru = NULL;
+    uchar *ptrv = NULL;
+    if(img.avOK())
+    {
+        ptry = (uchar*)img.u->frame->data[0];
+        ptru = (uchar*)img.u->frame->data[1];
+        ptrv = (uchar*)img.u->frame->data[2];
+    }
+    else
+    {
+        ptr = img.ptr();
+    }
+
     size_t step = img.step;
     Size2l size0(img.size()), size = size0;
 
@@ -334,8 +518,25 @@ LineAA( Mat& img, Point2l pt1, Point2l pt2, const void* color )
         return;
     }
 
-    size.width <<= XY_SHIFT;
-    size.height <<= XY_SHIFT;
+    if(img.avOK())
+    {
+        pt1.x -= XY_ONE*2;
+        pt1.y -= XY_ONE*2;
+        pt2.x -= XY_ONE*2;
+        pt2.y -= XY_ONE*2;
+        ptry += img.step*2 + 2*nch;
+        ptru += img.step/2 + nch;
+        ptrv += img.step/2 + nch;
+        size.width = ((size.width - 5) << XY_SHIFT) + 1;
+        size.height = ((size.height - 5) << XY_SHIFT) + 1;
+    }
+    else
+    {
+        size.width <<= XY_SHIFT;
+        size.height <<= XY_SHIFT;
+    }
+
+
     if( !clipLine( size, pt1, pt2 ))
         return;
 
@@ -496,59 +697,177 @@ LineAA( Mat& img, Point2l pt1, Point2l pt2, const void* color )
             tptr[0] = (uchar)_cb;           \
         }
 
+        #define  ICV_PUT_POINT_YUV()         \
+        {                                    \
+            _cb = tptry[0];                  \
+            _cb += ((cb - _cb)*a + 127)>> 8; \
+            tptry[0] = (uchar)_cb;           \
+            _cg = tptru[0];                  \
+            _cg += ((cg - _cg)*a + 127)>> 8; \
+            tptru[0] = (uchar)_cg;           \
+            _cr = tptrv[0];                  \
+            _cr += ((cr - _cr)*a + 127)>> 8; \
+            tptrv[0] = (uchar)_cr;           \
+        }
+
+        #define  ICV_PUT_POINT_YUV_Y()       \
+        {                                    \
+            _cb = tptry[0];                  \
+            _cb += ((cb - _cb)*a + 127)>> 8; \
+            tptry[0] = (uchar)_cb;           \
+        }
+
+        #define  ICV_PUT_POINT_YUV_UV()      \
+        {                                    \
+            _cg = tptru[0];                  \
+            _cg += ((cg - _cg)*a + 127)>> 8; \
+            tptru[0] = (uchar)_cg;           \
+            _cr = tptrv[0];                  \
+            _cr += ((cr - _cr)*a + 127)>> 8; \
+            tptrv[0] = (uchar)_cr;           \
+        }
+
         if( ax > ay )
         {
-            int x = (int)(pt1.x >> XY_SHIFT);
-
-            for( ; ecount >= 0; x++, pt1.y += y_step, scount++, ecount-- )
+            if(img.avOK())
             {
-                if( (unsigned)x >= (unsigned)size0.width )
-                    continue;
-                int y = (int)((pt1.y >> XY_SHIFT) - 1);
+                ptry += (pt1.x >> XY_SHIFT)/2*2;
+                ptru += (pt1.x >> XY_SHIFT)/2*2/2;
+                ptrv += (pt1.x >> XY_SHIFT)/2*2/2;
 
-                int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
-                                       (((ecount >= 2) + 1) & (ecount | 2))];
-                int a, dist = (pt1.y >> (XY_SHIFT - 5)) & 31;
+                int flag = 0;
+                while( ecount >= 0 )
+                {
+                    uchar *tptry = ptry + ((pt1.y >> XY_SHIFT)/2*2 - 1) * step;
+                    uchar *tptru = ptru + ((pt1.y >> XY_SHIFT)/2*2/2) * step/2;
+                    uchar *tptrv = ptrv + ((pt1.y >> XY_SHIFT)/2*2/2) * step/2;
 
-                a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
-                if( (unsigned)y < (unsigned)size0.height )
-                    ICV_PUT_POINT(x, y)
+                    int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
+                                           (((ecount >= 2) + 1) & (ecount | 2))];
+                    int a, dist = (pt1.y >> (XY_SHIFT - 5)) & 31;
 
-                a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
-                if( (unsigned)(y+1) < (unsigned)size0.height )
-                    ICV_PUT_POINT(x, y+1)
+                    a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
 
-                a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
-                if( (unsigned)(y+2) < (unsigned)size0.height )
-                    ICV_PUT_POINT(x, y+2)
+                    tptry += step;
+                    a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
+                    ICV_PUT_POINT_YUV_UV();
+
+                    tptry += step;
+                    tptru += step/2;
+                    tptrv += step/2;
+                    a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
+
+                    pt1.y += y_step;
+                    ptry++;
+                    if(++flag%2 == 0)
+                    {
+                        ptru++;
+                        ptrv++;
+                    }
+                    scount++;
+                    ecount--;
+                }
+            }
+            else
+            {
+
+                int x = (int)(pt1.x >> XY_SHIFT);
+    
+                for( ; ecount >= 0; x++, pt1.y += y_step, scount++, ecount-- )
+                {
+                    if( (unsigned)x >= (unsigned)size0.width )
+                        continue;
+                    int y = (int)((pt1.y >> XY_SHIFT) - 1);
+    
+                    int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
+                                           (((ecount >= 2) + 1) & (ecount | 2))];
+                    int a, dist = (pt1.y >> (XY_SHIFT - 5)) & 31;
+    
+                    a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
+                    if( (unsigned)y < (unsigned)size0.height )
+                        ICV_PUT_POINT(x, y)
+    
+                    a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
+                    if( (unsigned)(y+1) < (unsigned)size0.height )
+                        ICV_PUT_POINT(x, y+1)
+    
+                    a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
+                    if( (unsigned)(y+2) < (unsigned)size0.height )
+                        ICV_PUT_POINT(x, y+2)
+                }
             }
         }
         else
         {
-            int y = (int)(pt1.y >> XY_SHIFT);
-
-            for( ; ecount >= 0; y++, pt1.x += x_step, scount++, ecount-- )
+            if(img.avOK())
             {
-                if( (unsigned)y >= (unsigned)size0.height )
-                    continue;
-                int x = (int)((pt1.x >> XY_SHIFT) - 1);
-                int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
-                                       (((ecount >= 2) + 1) & (ecount | 2))];
-                int a, dist = (pt1.x >> (XY_SHIFT - 5)) & 31;
+                ptry += ((pt1.y >> XY_SHIFT)/2*2) * step;
+                ptru += ((pt1.y >> XY_SHIFT )/2*2/2) * step/2;
+                ptrv += ((pt1.y >> XY_SHIFT )/2*2/2) * step/2;
+                int flag = 0;
+                while( ecount >= 0 )
+                {
+                    uchar *tptry = ptry + (((pt1.x >> XY_SHIFT))/2*2-1);
+                    uchar *tptru = ptru + (((pt1.x >> XY_SHIFT))/2*2)/2;
+                    uchar *tptrv = ptrv + (((pt1.x >> XY_SHIFT))/2*2)/2;
 
-                a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
-                if( (unsigned)x < (unsigned)size0.width )
-                    ICV_PUT_POINT(x, y)
+                    int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
+                                           (((ecount >= 2) + 1) & (ecount | 2))];
+                    int a, dist = (pt1.x >> (XY_SHIFT - 5)) & 31;
 
-                a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
-                if( (unsigned)(x+1) < (unsigned)size0.width )
-                    ICV_PUT_POINT(x+1, y)
+                    a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
 
-                a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
-                if( (unsigned)(x+2) < (unsigned)size0.width )
-                    ICV_PUT_POINT(x+2, y)
+                    tptry++;
+                    a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
+                    ICV_PUT_POINT_YUV_UV();
+
+                    tptry++;
+                    a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
+                    ICV_PUT_POINT_YUV_Y();
+                    pt1.x += x_step;
+                    ptry += step;
+                    if ((++flag % 2) == 0)
+                    {
+                        ptru += step/2;
+                        ptrv += step/2;
+                    }
+                    scount++;
+                    ecount--;
+                }
+            }
+            else
+            {
+                int y = (int)(pt1.y >> XY_SHIFT);
+    
+                for( ; ecount >= 0; y++, pt1.x += x_step, scount++, ecount-- )
+                {
+                    if( (unsigned)y >= (unsigned)size0.height )
+                        continue;
+                    int x = (int)((pt1.x >> XY_SHIFT) - 1);
+                    int ep_corr = ep_table[(((scount >= 2) + 1) & (scount | 2)) * 3 +
+                                           (((ecount >= 2) + 1) & (ecount | 2))];
+                    int a, dist = (pt1.x >> (XY_SHIFT - 5)) & 31;
+    
+                    a = (ep_corr * FilterTable[dist + 32] >> 8) & 0xff;
+                    if( (unsigned)x < (unsigned)size0.width )
+                        ICV_PUT_POINT(x, y)
+    
+                    a = (ep_corr * FilterTable[dist] >> 8) & 0xff;
+                    if( (unsigned)(x+1) < (unsigned)size0.width )
+                        ICV_PUT_POINT(x+1, y)
+    
+                    a = (ep_corr * FilterTable[63 - dist] >> 8) & 0xff;
+                    if( (unsigned)(x+2) < (unsigned)size0.width )
+                        ICV_PUT_POINT(x+2, y)
+                }
             }
         }
+        #undef ICV_PUT_POINT_YUV
         #undef ICV_PUT_POINT
     }
     else
@@ -644,7 +963,21 @@ Line2( Mat& img, Point2l pt1, Point2l pt2, const void* color)
     int cg = ((uchar*)color)[1];
     int cr = ((uchar*)color)[2];
     int pix_size = (int)img.elemSize();
-    uchar *ptr = img.ptr(), *tptr;
+    uchar *ptr = NULL;
+    uchar *ptry = NULL;
+    uchar *ptru = NULL;
+    uchar *ptrv = NULL;
+    uchar *tptr;
+    if(img.avOK())
+    {
+        ptry = (uchar*)img.u->frame->data[0];
+        ptru = (uchar*)img.u->frame->data[1];
+        ptrv = (uchar*)img.u->frame->data[2];
+    }
+    else
+    {
+        ptr = img.ptr();
+    }
     size_t step = img.step;
     Size size = img.size();
 
@@ -696,15 +1029,24 @@ Line2( Mat& img, Point2l pt1, Point2l pt2, const void* color)
 
     if( pix_size == 3 )
     {
-        #define  ICV_PUT_POINT(_x,_y)   \
-        x = (_x); y = (_y);             \
-        if( 0 <= x && x < size.width && \
-            0 <= y && y < size.height ) \
-        {                               \
-            tptr = ptr + y*step + x*3;  \
-            tptr[0] = (uchar)cb;        \
-            tptr[1] = (uchar)cg;        \
-            tptr[2] = (uchar)cr;        \
+        #define  ICV_PUT_POINT(_x,_y)               \
+        x = (_x); y = (_y);                         \
+        if( 0 <= x && x < size.width &&             \
+            0 <= y && y < size.height )             \
+        {                                           \
+            if(img.avOK()) {                        \
+                tptr = ptry + y*step + x;           \
+                tptr[0] = (uchar)cb;                \
+                tptr = ptru + (y/2)*(step/2) + x/2; \
+                tptr[0] = (uchar)cg;                \
+                tptr = ptrv + (y/2)*(step/2) + x/2; \
+                tptr[0] = (uchar)cr;                \
+            }else{                                  \
+                tptr = ptr + y*step + x*3;          \
+                tptr[0] = (uchar)cb;                \
+                tptr[1] = (uchar)cg;                \
+                tptr[2] = (uchar)cr;                \
+            }                                       \
         }
 
         ICV_PUT_POINT((int)((pt2.x + (XY_ONE >> 1)) >> XY_SHIFT),
@@ -739,13 +1081,22 @@ Line2( Mat& img, Point2l pt1, Point2l pt2, const void* color)
     }
     else if( pix_size == 1 )
     {
-        #define  ICV_PUT_POINT(_x,_y) \
-        x = (_x); y = (_y);           \
-        if( 0 <= x && x < size.width && \
-            0 <= y && y < size.height ) \
-        {                           \
-            tptr = ptr + y*step + x;\
-            tptr[0] = (uchar)cb;    \
+        #define  ICV_PUT_POINT(_x,_y)                \
+        x = (_x); y = (_y);                          \
+        if( 0 <= x && x < size.width &&              \
+            0 <= y && y < size.height )              \
+        {                                            \
+            if(img.avOK()) {                         \
+                tptr = ptry + y*step + x;            \
+                tptr[0] = (uchar)cb;                 \
+                tptr = ptru + (y/2)*(step/2) + x/2;  \
+                tptr[0] = (uchar)cg;                 \
+                tptr = ptrv + (y/2)*(step/2) + x/2;  \
+                tptr[0] = (uchar)cr;                 \
+	    }else{                                   \
+                tptr = ptr + y*step + x;             \
+                tptr[0] = (uchar)cb;                 \
+            }                                        \
         }
 
         ICV_PUT_POINT((int)((pt2.x + (XY_ONE >> 1)) >> XY_SHIFT),
@@ -1058,6 +1409,16 @@ EllipseEx( Mat& img, Point2l center, Size2l axes,
 *                                Polygons filling                                        *
 \****************************************************************************************/
 
+
+static inline void ICV_HLINE_YUV(uchar* ptr, int xl, int xr, int color)
+{
+    uchar* hline_min_ptr = (uchar*)(ptr) + (xl);
+    uchar* hline_end_ptr = (uchar*)(ptr) + (xr+1);
+    memset(hline_min_ptr, color, hline_end_ptr-hline_min_ptr);
+    return;
+}
+//end ICV_HLINE_YUV()
+
 static inline void ICV_HLINE_X(uchar* ptr, int64_t xl, int64_t xr, const uchar* color, int pix_size)
 {
     uchar* hline_min_ptr = (uchar*)(ptr) + (xl)*(pix_size);
@@ -1105,7 +1466,20 @@ FillConvexPoly( Mat& img, const Point2l* v, int npts, const void* color, int lin
     int i, y, imin = 0;
     int edges = npts;
     int64 xmin, xmax, ymin, ymax;
-    uchar* ptr = img.ptr();
+    uchar *ptr = NULL;
+    uchar *ptry = NULL;
+    uchar *ptru = NULL;
+    uchar *ptrv = NULL;
+    if(img.avOK())
+    {
+        ptry = (uchar*)img.u->frame->data[0];
+        ptru = (uchar*)img.u->frame->data[1];
+        ptrv = (uchar*)img.u->frame->data[2];
+    }
+    else
+    {
+        ptr = img.ptr();
+    }
     Size size = img.size();
     int pix_size = (int)img.elemSize();
     Point2l p0;
@@ -1177,8 +1551,18 @@ FillConvexPoly( Mat& img, const Point2l* v, int npts, const void* color, int lin
     edge[0].x = edge[1].x = -XY_ONE;
     edge[0].dx = edge[1].dx = 0;
 
-    ptr += (int64_t)img.step*y;
+    if(img.avOK())
+    {
+        ptry += img.avStep(0)*y;
+        ptru += (img.avStep(1))*(y/2);
+        ptrv += (img.avStep(2))*(y/2);
+    }
+    else
+    {
+        ptr += (int64_t)img.step*y;
+    }
 
+    int flag_uv = 0;
     do
     {
         if( line_type < cv::LINE_AA || y < (int)ymax || y == (int)ymin )
@@ -1239,7 +1623,16 @@ FillConvexPoly( Mat& img, const Point2l* v, int npts, const void* color, int lin
                     xx1 = 0;
                 if( xx2 >= size.width )
                     xx2 = size.width - 1;
-                ICV_HLINE( ptr, xx1, xx2, color, pix_size );
+                if(img.avOK())
+                {
+                    ICV_HLINE_YUV( ptry, xx1, xx2, ((uchar*)color)[0] );
+                    ICV_HLINE_YUV( ptru, xx1/2, xx2/2, ((uchar*)color)[1] );
+                    ICV_HLINE_YUV( ptrv, xx1/2, xx2/2, ((uchar*)color)[2] );
+                }
+                else
+                {
+                    ICV_HLINE( ptr, xx1, xx2, color, pix_size );
+                }
             }
         }
         else
@@ -1249,7 +1642,21 @@ FillConvexPoly( Mat& img, const Point2l* v, int npts, const void* color, int lin
 
         edge[0].x += edge[0].dx;
         edge[1].x += edge[1].dx;
-        ptr += img.step;
+        if(img.avOK())
+        {
+            ptry += img.avStep(0);
+
+            if(flag_uv%2 == 1)
+            {
+                ptru += img.avStep(1);
+                ptrv += img.avStep(2);
+            }
+            flag_uv++;
+        }
+        else
+        {
+            ptr += img.step;
+        }
     }
     while( ++y <= (int)ymax );
 }
@@ -1435,7 +1842,21 @@ FillEdgeCollection( Mat& img, std::vector<PolyEdge>& edges, const void* color, i
                 if( !clipline )
                 {
                     // convert x's from fixed-point to image coordinates
-                    uchar *timg = img.ptr(y);
+                    uchar *timg = NULL;
+                    uchar *timgy = NULL;
+                    uchar *timgu = NULL;
+                    uchar *timgv = NULL;
+                    if(img.avOK())
+                    {
+                        timgy = (uchar*)img.u->frame->data[0] + img.cols*y;
+                        timgu = (uchar*)img.u->frame->data[1] + (img.cols/2) * (y/2);
+                        timgv = (uchar*)img.u->frame->data[2] + (img.cols/2) * (y/2);
+                    }
+                    else
+                    {
+                        timg = img.ptr(y);
+                    }
+
                     int x1, x2;
 
                     if (keep_prelast->x > prelast->x)
@@ -1456,7 +1877,16 @@ FillEdgeCollection( Mat& img, std::vector<PolyEdge>& edges, const void* color, i
                             x1 = 0;
                         if( x2 >= size.width )
                             x2 = size.width - 1;
-                        ICV_HLINE( timg, x1, x2, color, pix_size );
+                        if(img.avOK())
+                        {
+                            ICV_HLINE_YUV( timgy, x1, x2, ((uchar*)color)[0] );
+                            ICV_HLINE_YUV( timgu, x1/2, x2/2, ((uchar*)color)[1] );
+                            ICV_HLINE_YUV( timgv, x1/2, x2/2, ((uchar*)color)[2] );
+                        }
+                        else
+                        {
+                            ICV_HLINE( timg, x1, x2, color, pix_size );
+                        }
                     }
                 }
                 keep_prelast->x += keep_prelast->dx;
@@ -1500,6 +1930,91 @@ FillEdgeCollection( Mat& img, std::vector<PolyEdge>& edges, const void* color, i
     }
 }
 
+#ifdef SUPPORTDRAWYUV
+static void
+CircledotInYuv( Mat& img, Point center, int radius, const Scalar& color, bool fill)
+{
+    uchar bc = saturate_cast<uchar>(color.val[0]);
+    uchar gc = saturate_cast<uchar>(color.val[1]);
+    uchar rc = saturate_cast<uchar>(color.val[2]);
+    uchar y = rgbToY42x(rc,gc,bc);
+    uchar u=128,v=128;
+    rgbToUV42x(rc,gc,bc,u,v);
+
+    int err = 0, dx = radius, dy = 0, plus = 1, minus = (radius << 1) - 1;
+    int inside = center.x >= radius && center.x < img.avCols() - radius &&
+        center.y >= radius && center.y < img.avRows() - radius;
+    if( !inside)
+    {
+        printf("will not suppor out rang circle \n");
+    }
+
+    while( dx >= dy )
+    {
+        int mask;
+        int y11 = center.y - dy, y12 = center.y + dy, y21 = center.y - dx, y22 = center.y + dx;
+        int x11 = center.x - dx, x12 = center.x + dx, x21 = center.x - dy, x22 = center.x + dy;
+
+        if( inside )
+        {
+            //uchar *tptr0 = ptr + y11 * step;
+            //uchar *tptr1 = ptr + y12 * step;
+            if( !fill )
+            {
+                //ICV_PUT_POINT( tptr0, x11 );
+                fillYuvRow(img, y, u, v, y11 ,x11, 1);
+                //ICV_PUT_POINT( tptr1, x11 );
+                fillYuvRow(img, y, u, v, y12 ,x11, 1);
+                //ICV_PUT_POINT( tptr0, x12 );
+                fillYuvRow(img, y, u, v, y11 ,x12, 1);
+                //ICV_PUT_POINT( tptr1, x12 );
+                fillYuvRow(img, y, u, v, y12 ,x12, 1);
+            }
+            else
+            {
+                //ICV_HLINE( tptr0, x11, x12, color, pix_size );
+                fillYuvRow(img, y, u, v, y11 ,x11, x12-x11);
+                //ICV_HLINE( tptr1, x11, x12, color, pix_size );
+                fillYuvRow(img, y, u, v, y12 ,x11, x12-x11);
+            }
+
+            //tptr0 = ptr + y21 * step;
+            //tptr1 = ptr + y22 * step;
+
+            if( !fill )
+            {
+                //ICV_PUT_POINT( tptr0, x21 );
+                 fillYuvRow(img, y, u, v, y21 ,x21, 1);
+                //ICV_PUT_POINT( tptr1, x21 );
+                fillYuvRow(img, y, u, v, y22 ,x21, 1);
+                //ICV_PUT_POINT( tptr0, x22 );
+                fillYuvRow(img, y, u, v, y21 ,x22, 1);
+                //ICV_PUT_POINT( tptr1, x22 );
+                fillYuvRow(img, y, u, v, y22 ,x22, 1);
+            }
+            else
+            {
+                //ICV_HLINE( tptr0, x21, x22, color, pix_size );
+                fillYuvRow(img, y, u, v, y21 ,x21, x22-x21);
+                //ICV_HLINE( tptr1, x21, x22, color, pix_size );
+                fillYuvRow(img, y, u, v, y22 ,x21, x22-x21);
+            }
+        }
+        dy++;
+        err += plus;
+        plus += 2;
+
+        mask = (err <= 0) - 1;
+
+        err -= minus & mask;
+        dx += mask;
+        minus -= mask & 2;
+    }
+#ifdef HAVE_BMCV
+           bmcv::uploadMat(img);
+#endif
+}
+#endif
 
 /* draws simple or filled circle */
 static void
@@ -1508,13 +2023,29 @@ Circle( Mat& img, Point center, int radius, const void* color, int fill )
     Size size = img.size();
     size_t step = img.step;
     int pix_size = (int)img.elemSize();
-    uchar* ptr = img.ptr();
+    uchar *ptr = NULL;
+    uchar *ptry = NULL;
+    uchar *ptru = NULL;
+    uchar *ptrv = NULL;
+    if(img.avOK())
+    {
+        ptry = (uchar*)img.u->frame->data[0];
+        ptru = (uchar*)img.u->frame->data[1];
+        ptrv = (uchar*)img.u->frame->data[2];
+    }
+    else
+    {
+        ptr = img.ptr();
+    }
+
     int64_t err = 0, dx = radius, dy = 0, plus = 1, minus = (radius << 1) - 1;
     int inside = center.x >= radius && center.x < size.width - radius &&
         center.y >= radius && center.y < size.height - radius;
 
     #define ICV_PUT_POINT( ptr, x )     \
         memcpy( ptr + (x)*pix_size, color, pix_size );
+    #define ICV_PUT_POINT_YUV( ptr, x, _color)     \
+        memcpy( ptr + (x), _color, 1 );
 
     while( dx >= dy )
     {
@@ -1524,36 +2055,105 @@ Circle( Mat& img, Point center, int radius, const void* color, int fill )
 
         if( inside )
         {
-            uchar *tptr0 = ptr + y11 * step;
-            uchar *tptr1 = ptr + y12 * step;
-
-            if( !fill )
+            if(img.avOK())
             {
-                ICV_PUT_POINT( tptr0, x11 );
-                ICV_PUT_POINT( tptr1, x11 );
-                ICV_PUT_POINT( tptr0, x12 );
-                ICV_PUT_POINT( tptr1, x12 );
+                uchar *tptr0y = ptry + y11 * step;
+                uchar *tptr1y = ptry + y12 * step;
+                uchar *tptr0u = ptru + (y11/2) * (step/2);
+                uchar *tptr1u = ptru + (y12/2) * (step/2);
+                uchar *tptr0v = ptrv + (y11/2) * (step/2);
+                uchar *tptr1v = ptrv + (y12/2) * (step/2);
+
+                if( !fill )
+                {
+                    ICV_PUT_POINT_YUV( tptr0y, x11, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr1y, x11, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr0y, x12, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr1y, x12, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr0u, x11/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr1u, x11/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr0u, x12/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr1u, x12/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr0v, x11/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr1v, x11/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr0v, x12/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr1v, x12/2, &((uchar*)color)[2] );
+                }
+                else
+                {
+                    ICV_HLINE_YUV( tptr0y, x11, x12, ((uchar*)color)[0] );
+                    ICV_HLINE_YUV( tptr1y, x11, x12, ((uchar*)color)[0] );
+                    ICV_HLINE_YUV( tptr0u, x11/2, x12/2, ((uchar*)color)[1] );
+                    ICV_HLINE_YUV( tptr1u, x11/2, x12/2, ((uchar*)color)[1] );
+                    ICV_HLINE_YUV( tptr0v, x11/2, x12/2, ((uchar*)color)[2] );
+                    ICV_HLINE_YUV( tptr1v, x11/2, x12/2, ((uchar*)color)[2] );
+                }
+
+                tptr0y = ptry + y21 * step;
+                tptr1y = ptry + y22 * step;
+                tptr0u = ptru + (y21/2) * (step/2);
+                tptr1u = ptru + (y22/2) * (step/2);
+                tptr0v = ptrv + (y21/2) * (step/2);
+                tptr1v = ptrv + (y22/2) * (step/2);
+
+                if( !fill )
+                {
+                    ICV_PUT_POINT_YUV( tptr0y, x21, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr1y, x21, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr0y, x22, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr1y, x22, &((uchar*)color)[0] );
+                    ICV_PUT_POINT_YUV( tptr0u, x21/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr1u, x21/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr0u, x22/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr1u, x22/2, &((uchar*)color)[1] );
+                    ICV_PUT_POINT_YUV( tptr0v, x21/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr1v, x21/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr0v, x22/2, &((uchar*)color)[2] );
+                    ICV_PUT_POINT_YUV( tptr1v, x22/2, &((uchar*)color)[2] );
+                }
+                else
+                {
+                    ICV_HLINE_YUV( tptr0y, x21, x22, ((uchar*)color)[0] );
+                    ICV_HLINE_YUV( tptr1y, x21, x22, ((uchar*)color)[0] );
+                    ICV_HLINE_YUV( tptr0u, x21/2, x22/2, ((uchar*)color)[1] );
+                    ICV_HLINE_YUV( tptr1u, x21/2, x22/2, ((uchar*)color)[1] );
+                    ICV_HLINE_YUV( tptr0v, x21/2, x22/2, ((uchar*)color)[2] );
+                    ICV_HLINE_YUV( tptr1v, x21/2, x22/2, ((uchar*)color)[2] );
+                }
             }
             else
             {
-                ICV_HLINE( tptr0, x11, x12, color, pix_size );
-                ICV_HLINE( tptr1, x11, x12, color, pix_size );
-            }
+                uchar *tptr0 = ptr + y11 * step;
+                uchar *tptr1 = ptr + y12 * step;
 
-            tptr0 = ptr + y21 * step;
-            tptr1 = ptr + y22 * step;
+                if( !fill )
+                {
+                    ICV_PUT_POINT( tptr0, x11 );
+                    ICV_PUT_POINT( tptr1, x11 );
+                    ICV_PUT_POINT( tptr0, x12 );
+                    ICV_PUT_POINT( tptr1, x12 );
+                }
+                else
+                {
+                    ICV_HLINE( tptr0, x11, x12, color, pix_size );
+                    ICV_HLINE( tptr1, x11, x12, color, pix_size );
+                }
 
-            if( !fill )
-            {
-                ICV_PUT_POINT( tptr0, x21 );
-                ICV_PUT_POINT( tptr1, x21 );
-                ICV_PUT_POINT( tptr0, x22 );
-                ICV_PUT_POINT( tptr1, x22 );
-            }
-            else
-            {
-                ICV_HLINE( tptr0, x21, x22, color, pix_size );
-                ICV_HLINE( tptr1, x21, x22, color, pix_size );
+                tptr0 = ptr + y21 * step;
+                tptr1 = ptr + y22 * step;
+
+                if( !fill )
+                {
+                    ICV_PUT_POINT( tptr0, x21 );
+                    ICV_PUT_POINT( tptr1, x21 );
+                    ICV_PUT_POINT( tptr0, x22 );
+                    ICV_PUT_POINT( tptr1, x22 );
+                }
+                else
+                {
+                    ICV_HLINE( tptr0, x21, x22, color, pix_size );
+                    ICV_HLINE( tptr1, x21, x22, color, pix_size );
+                }
             }
         }
         else if( x11 < size.width && x12 >= 0 && y21 < size.height && y22 >= 0 )
@@ -1566,32 +2166,95 @@ Circle( Mat& img, Point center, int radius, const void* color, int fill )
 
             if( (unsigned)y11 < (unsigned)size.height )
             {
-                uchar *tptr = ptr + y11 * step;
-
-                if( !fill )
+                if(img.avOK())
                 {
-                    if( x11 >= 0 )
-                        ICV_PUT_POINT( tptr, x11 );
-                    if( x12 < size.width )
-                        ICV_PUT_POINT( tptr, x12 );
+                    uchar *tptry = ptry + y11 * step;
+                    uchar *tptru = ptru + (y11/2) * (step/2);
+                    uchar *tptrv = ptrv + (y11/2) * (step/2);
+
+                    if( !fill )
+                    {
+                        if( x11 >= 0 )
+                        {
+                            ICV_PUT_POINT_YUV( tptry, x11, &((uchar*)color)[0] );
+                            ICV_PUT_POINT_YUV( tptru, x11/2, &((uchar*)color)[1] );
+                            ICV_PUT_POINT_YUV( tptrv, x11/2, &((uchar*)color)[2] );
+                        }
+                        if( x12 < size.width )
+                        {
+                            ICV_PUT_POINT_YUV( tptry, x12, &((uchar*)color)[0] );
+                            ICV_PUT_POINT_YUV( tptru, x12/2, &((uchar*)color)[1] );
+                            ICV_PUT_POINT_YUV( tptrv, x12/2, &((uchar*)color)[2] );
+                        }
+                    }
+                    else
+                    {
+                        ICV_HLINE_YUV( tptry, x11, x12, ((uchar*)color)[0] );
+                        ICV_HLINE_YUV( tptru, x11/2, x12/2, ((uchar*)color)[1] );
+                        ICV_HLINE_YUV( tptrv, x11/2, x12/2, ((uchar*)color)[2] );
+                    }
                 }
                 else
-                    ICV_HLINE( tptr, x11, x12, color, pix_size );
+                {
+                    uchar *tptr = ptr + y11 * step;
+
+                    if( !fill )
+                    {
+                        if( x11 >= 0 )
+                            ICV_PUT_POINT( tptr, x11 );
+                        if( x12 < size.width )
+                            ICV_PUT_POINT( tptr, x12 );
+                    }
+                    else
+                        ICV_HLINE( tptr, x11, x12, color, pix_size );
+                }
             }
 
             if( (unsigned)y12 < (unsigned)size.height )
             {
-                uchar *tptr = ptr + y12 * step;
-
-                if( !fill )
+                if(img.avOK())
                 {
-                    if( x11 >= 0 )
-                        ICV_PUT_POINT( tptr, x11 );
-                    if( x12 < size.width )
-                        ICV_PUT_POINT( tptr, x12 );
+                    uchar *tptry = ptry + y12 * step;
+                    uchar *tptru = ptru + (y12/2) * (step/2);
+                    uchar *tptrv = ptrv + (y12/2) * (step/2);
+
+                    if( !fill )
+                    {
+                        if( x11 >= 0 )
+                        {
+                            ICV_PUT_POINT_YUV( tptry, x11, &((uchar*)color)[0] );
+                            ICV_PUT_POINT_YUV( tptru, x11/2, &((uchar*)color)[1] );
+                            ICV_PUT_POINT_YUV( tptrv, x11/2, &((uchar*)color)[2] );
+                        }
+                        if( x12 < size.width )
+                        {
+                            ICV_PUT_POINT_YUV( tptry, x12, &((uchar*)color)[0] );
+                            ICV_PUT_POINT_YUV( tptru, x12/2, &((uchar*)color)[1] );
+                            ICV_PUT_POINT_YUV( tptrv, x12/2, &((uchar*)color)[2] );
+                        }
+                    }
+                    else
+                    {
+                        ICV_HLINE_YUV( tptry, x11, x12, ((uchar*)color)[0] );
+                        ICV_HLINE_YUV( tptru, x11/2, x12/2, ((uchar*)color)[1] );
+                        ICV_HLINE_YUV( tptrv, x11/2, x12/2, ((uchar*)color)[2] );
+                    }
                 }
                 else
-                    ICV_HLINE( tptr, x11, x12, color, pix_size );
+                {
+
+                    uchar *tptr = ptr + y12 * step;
+
+                    if( !fill )
+                    {
+                        if( x11 >= 0 )
+                            ICV_PUT_POINT( tptr, x11 );
+                        if( x12 < size.width )
+                            ICV_PUT_POINT( tptr, x12 );
+                    }
+                    else
+                        ICV_HLINE( tptr, x11, x12, color, pix_size );
+                }
             }
 
             if( x21 < size.width && x22 >= 0 )
@@ -1604,32 +2267,98 @@ Circle( Mat& img, Point center, int radius, const void* color, int fill )
 
                 if( (unsigned)y21 < (unsigned)size.height )
                 {
-                    uchar *tptr = ptr + y21 * step;
 
-                    if( !fill )
+                    if(img.avOK())
                     {
-                        if( x21 >= 0 )
-                            ICV_PUT_POINT( tptr, x21 );
-                        if( x22 < size.width )
-                            ICV_PUT_POINT( tptr, x22 );
+                        uchar *tptry = ptry + y21 * step;
+                        uchar *tptru = ptru + (y21/2) * (step/2);
+                        uchar *tptrv = ptrv + (y21/2) * (step/2);
+
+                        if( !fill )
+                        {
+                            if( x21 >= 0 )
+                            {
+                                ICV_PUT_POINT_YUV( tptry, x21, &((uchar*)color)[0] );
+                                ICV_PUT_POINT_YUV( tptru, x21/2, &((uchar*)color)[1] );
+                                ICV_PUT_POINT_YUV( tptrv, x21/2, &((uchar*)color)[2] );
+                            }
+                            if( x22 < size.width )
+                            {
+                                ICV_PUT_POINT_YUV( tptry, x22, &((uchar*)color)[0] );
+                                ICV_PUT_POINT_YUV( tptru, x22/2, &((uchar*)color)[1] );
+                                ICV_PUT_POINT_YUV( tptrv, x22/2, &((uchar*)color)[2] );
+                            }
+                        }
+                        else
+                        {
+                            ICV_HLINE_YUV( tptry, x21, x22, ((uchar*)color)[0] );
+                            ICV_HLINE_YUV( tptru, x21/2, x22/2, ((uchar*)color)[1] );
+                            ICV_HLINE_YUV( tptrv, x21/2, x22/2, ((uchar*)color)[2] );
+                        }
                     }
                     else
-                        ICV_HLINE( tptr, x21, x22, color, pix_size );
+                    {
+
+
+                        uchar *tptr = ptr + y21 * step;
+
+                        if( !fill )
+                        {
+                            if( x21 >= 0 )
+                                ICV_PUT_POINT( tptr, x21 );
+                            if( x22 < size.width )
+                                ICV_PUT_POINT( tptr, x22 );
+                        }
+                        else
+                            ICV_HLINE( tptr, x21, x22, color, pix_size );
+                    }
                 }
 
                 if( (unsigned)y22 < (unsigned)size.height )
                 {
-                    uchar *tptr = ptr + y22 * step;
-
-                    if( !fill )
+                    if(img.avOK())
                     {
-                        if( x21 >= 0 )
-                            ICV_PUT_POINT( tptr, x21 );
-                        if( x22 < size.width )
-                            ICV_PUT_POINT( tptr, x22 );
+                        uchar *tptry = ptry + y22 * step;
+                        uchar *tptru = ptru + (y22/2) * (step/2);
+                        uchar *tptrv = ptrv + (y22/2) * (step/2);
+
+                        if( !fill )
+                        {
+                            if( x21 >= 0 )
+                            {
+                                ICV_PUT_POINT_YUV( tptry, x21, &((uchar*)color)[0] );
+                                ICV_PUT_POINT_YUV( tptru, x21/2, &((uchar*)color)[1] );
+                                ICV_PUT_POINT_YUV( tptrv, x21/2, &((uchar*)color)[2] );
+                            }
+                            if( x22 < size.width )
+                            {
+                                ICV_PUT_POINT_YUV( tptry, x22, &((uchar*)color)[0] );
+                                ICV_PUT_POINT_YUV( tptru, x22/2, &((uchar*)color)[1] );
+                                ICV_PUT_POINT_YUV( tptrv, x22/2, &((uchar*)color)[2] );
+                            }
+                        }
+                        else
+                        {
+                            ICV_HLINE_YUV( tptry, x21, x22, ((uchar*)color)[0] );
+                            ICV_HLINE_YUV( tptru, x21/2, x22/2, ((uchar*)color)[1] );
+                            ICV_HLINE_YUV( tptrv, x21/2, x22/2, ((uchar*)color)[2] );
+                        }
                     }
                     else
-                        ICV_HLINE( tptr, x21, x22, color, pix_size );
+                    {
+
+                        uchar *tptr = ptr + y22 * step;
+
+                        if( !fill )
+                        {
+                            if( x21 >= 0 )
+                                ICV_PUT_POINT( tptr, x21 );
+                            if( x22 < size.width )
+                                ICV_PUT_POINT( tptr, x22 );
+                        }
+                        else
+                            ICV_HLINE( tptr, x21, x22, color, pix_size );
+                    }
                 }
             }
         }
@@ -1817,6 +2546,72 @@ void drawMarker(InputOutputArray img, Point position, const Scalar& color, int m
 /****************************************************************************************\
 *                              External functions                                        *
 \****************************************************************************************/
+static void scalarToRawData_Darwing(InputOutputArray _img, const Scalar& color, double* _buf)
+{
+    Mat img = _img.getMat();
+    if(img.avOK())
+    {
+        uchar buf_yuv[4];
+        uchar bc = saturate_cast<uchar>(color.val[0]);
+        uchar gc = saturate_cast<uchar>(color.val[1]);
+        uchar rc = saturate_cast<uchar>(color.val[2]);
+
+
+        buf_yuv[0] = rgbToY42x(rc,gc,bc);
+        rgbToUV42x(rc,gc,bc,buf_yuv[1],buf_yuv[2]);
+
+        memcpy(_buf,buf_yuv,sizeof(buf_yuv));
+    }
+    else
+    {
+        scalarToRawData(color, _buf, img.type(), 0);
+    }
+    return;
+}
+
+void bmcpu_line( InputOutputArray _img, Point pt1, Point pt2, const Scalar& color,
+           int thickness, int line_type, int shift )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    CV_Assert( 0 < thickness && thickness <= MAX_THICKNESS );
+    CV_Assert( 0 <= shift && shift <= XY_SHIFT );
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(pt1));
+    CV_Assert(0 == sender.put(pt2));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(shift));
+
+    CV_Assert(0 == sender.run("bmcpu_line"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    line(_img, pt1, pt2, color, thickness, line_type, shift);
+#endif
+
+    return;
+}
 
 void line( InputOutputArray _img, Point pt1, Point pt2, const Scalar& color,
            int thickness, int line_type, int shift )
@@ -1832,8 +2627,20 @@ void line( InputOutputArray _img, Point pt1, Point pt2, const Scalar& color,
     CV_Assert( 0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData( color, buf, img.type(), 0 );
+    scalarToRawData_Darwing(_img,color, buf);
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
     ThickLine( img, pt1, pt2, buf, thickness, line_type, 3, shift );
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
 }
 
 void arrowedLine(InputOutputArray img, Point pt1, Point pt2, const Scalar& color,
@@ -1863,6 +2670,12 @@ void rectangle( InputOutputArray _img, Point pt1, Point pt2,
     CV_INSTRUMENT_REGION();
 
     Mat img = _img.getMat();
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( lineType == cv::LINE_AA && img.depth() != CV_8U )
         lineType = 8;
@@ -1871,7 +2684,7 @@ void rectangle( InputOutputArray _img, Point pt1, Point pt2,
     CV_Assert( 0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     Point2l pt[4];
 
@@ -1886,8 +2699,184 @@ void rectangle( InputOutputArray _img, Point pt1, Point pt2,
         PolyLine( img, pt, 4, true, buf, thickness, lineType, shift );
     else
         FillConvexPoly( img, pt, 4, buf, lineType, shift );
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
+}
+#ifdef SUPPORTDRAWYUV
+
+static inline void drawYBufer(uchar* Ybufer, Point pt1, Point pt2, int ystride, uchar y, int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i=pt1.y; i< pt1.y+lineType; i++)
+     {
+         memset(Ybufer+i*ystride+pt1.x,y,hsize);
+     }
+     for(int i=pt1.y+lineType; i< pt2.y-lineType ;i++)
+     {
+         memset(Ybufer+i*ystride+pt1.x,y,lineType);
+         memset(Ybufer+i*ystride+pt2.x-lineType,y,lineType);
+     }
+     for(int i=pt2.y-lineType; i< pt2.y; i++)
+     {
+         memset(Ybufer+i*ystride+pt1.x,y,hsize);
+     }
+
 }
 
+static inline void drawUV420Bufer(uchar* Ubufer,uchar* Vbufer,Point pt1, Point pt2, int uvstride, uchar u,uchar v,int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i = pt1.y/2; i < (pt1.y+lineType)/2; i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,hsize/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,hsize/2);
+     }
+     for(int i = (pt1.y+lineType)/2; i < (pt2.y-lineType)/2 ;i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,lineType/2);
+         memset(Ubufer+i*uvstride+(pt2.x-lineType)/2,u,lineType/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,lineType/2);
+         memset(Vbufer+i*uvstride+(pt2.x-lineType)/2,v,lineType/2);
+     }
+     for(int i = (pt2.y-lineType)/2; i < pt2.y/2; i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,hsize/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,hsize/2);
+     }
+
+}
+
+static inline void drawUV422Bufer(uchar* Ubufer,uchar* Vbufer,Point pt1, Point pt2, int uvstride, uchar u,uchar v,int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i = pt1.y; i < (pt1.y+lineType); i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,hsize/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,hsize/2);
+     }
+     for(int i = (pt1.y+lineType); i < (pt2.y-lineType) ;i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,lineType/2);
+         memset(Ubufer+i*uvstride+(pt2.x-lineType)/2,u,lineType/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,lineType/2);
+         memset(Vbufer+i*uvstride+(pt2.x-lineType)/2,v,lineType/2);
+     }
+     for(int i = (pt2.y-lineType); i < pt2.y; i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x/2,u,hsize/2);
+         memset(Vbufer+i*uvstride+pt1.x/2,v,hsize/2);
+     }
+
+}
+
+static inline void drawUV444Bufer(uchar* Ubufer,uchar* Vbufer,Point pt1, Point pt2, int uvstride, uchar u,uchar v,int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i = pt1.y; i< pt1.y+lineType; i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x,u,hsize);
+         memset(Vbufer+i*uvstride+pt1.x,v,hsize);
+     }
+     for(int i = pt1.y+lineType; i< pt2.y-lineType ;i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x,u,lineType);
+         memset(Ubufer+i*uvstride+(pt2.x-lineType),u,lineType);
+         memset(Vbufer+i*uvstride+pt1.x,v,lineType);
+         memset(Vbufer+i*uvstride+(pt2.x-lineType),v,lineType);
+     }
+     for(int i = pt2.y-lineType; i < pt2.y; i++)
+     {
+         memset(Ubufer+i*uvstride+pt1.x,u,hsize);
+         memset(Vbufer+i*uvstride+pt1.x,v,hsize);
+     }
+
+}
+
+static inline void drawNv12Bufer(uchar* Uvbufer,Point pt1, Point pt2, int uvstride, uchar u,uchar v,int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i = pt1.y/2; i < (pt1.y+lineType)/2; i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,hsize/2);
+     }
+     for(int i = (pt1.y+lineType)/2; i < (pt2.y-lineType)/2 ;i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,lineType/2);
+         fill16bit(Uvbufer+i*uvstride+((pt2.x-lineType)/2)*2,u,v,lineType/2);
+     }
+     for(int i = (pt2.y-lineType)/2; i < pt2.y/2; i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,hsize/2);
+     }
+
+}
+
+static inline void drawNv16Bufer(uchar* Uvbufer,Point pt1, Point pt2, int uvstride, uchar u,uchar v,int lineType)
+{
+     size_t  hsize = pt2.x - pt1.x;
+     for(int i = pt1.y; i < (pt1.y+lineType); i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,hsize/2);
+     }
+     for(int i = (pt1.y+lineType); i < (pt2.y-lineType) ;i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,lineType/2);
+         fill16bit(Uvbufer+i*uvstride+((pt2.x-lineType)/2)*2,u,v,lineType/2);
+     }
+     for(int i = (pt2.y-lineType); i < pt2.y; i++)
+     {
+         fill16bit(Uvbufer+i*uvstride+(pt1.x/2)*2,u,v,hsize/2);
+     }
+
+}
+
+#endif
+
+void bmcpu_rectangle( InputOutputArray _img, Point pt1, Point pt2,
+                const Scalar& color, int thickness,
+                int lineType, int shift )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(pt1));
+    CV_Assert(0 == sender.put(pt2));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(lineType));
+    CV_Assert(0 == sender.put(shift));
+
+    CV_Assert(0 == sender.run("bmcpu_rectangle"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    rectangle( _img, pt1, pt2, color, thickness, lineType, shift );
+#endif
+
+    return;
+}
 
 void rectangle( InputOutputArray img, Rect rec,
                 const Scalar& color, int thickness,
@@ -1906,6 +2895,49 @@ void rectangle( InputOutputArray img, Rect rec,
                    color, thickness, lineType, shift );
 }
 
+void bmcpu_circle( InputOutputArray _img, Point center, int radius,
+             const Scalar& color, int thickness, int line_type, int shift )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    CV_Assert( radius >= 0 && thickness <= MAX_THICKNESS &&
+        0 <= shift && shift <= XY_SHIFT );
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(center));
+    CV_Assert(0 == sender.put(radius));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(shift));
+
+    CV_Assert(0 == sender.run("bmcpu_circle"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    circle(_img, center, radius, color, thickness, line_type, shift);
+#endif
+
+    return;
+}
 
 void circle( InputOutputArray _img, Point center, int radius,
              const Scalar& color, int thickness, int line_type, int shift )
@@ -1913,6 +2945,12 @@ void circle( InputOutputArray _img, Point center, int radius,
     CV_INSTRUMENT_REGION();
 
     Mat img = _img.getMat();
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( line_type == cv::LINE_AA && img.depth() != CV_8U )
         line_type = 8;
@@ -1921,7 +2959,7 @@ void circle( InputOutputArray _img, Point center, int radius,
         0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     if( thickness > 1 || line_type != LINE_8 || shift > 0 )
     {
@@ -1935,8 +2973,57 @@ void circle( InputOutputArray _img, Point center, int radius,
     }
     else
         Circle( img, center, radius, buf, thickness < 0 );
+
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
 }
 
+void bmcpu_ellipse( InputOutputArray _img, Point center, Size axes,
+              double angle, double start_angle, double end_angle,
+              const Scalar& color, int thickness, int line_type, int shift )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(center));
+    CV_Assert(0 == sender.put(axes));
+    CV_Assert(0 == sender.put(angle));
+    CV_Assert(0 == sender.put(start_angle));
+    CV_Assert(0 == sender.put(end_angle));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(shift));
+
+    CV_Assert(0 == sender.run("bmcpu_ellipse"));
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    ellipse(_img, center, axes, angle, start_angle, end_angle, color, thickness, line_type, shift);
+#endif
+
+    return;
+}
 
 void ellipse( InputOutputArray _img, Point center, Size axes,
               double angle, double start_angle, double end_angle,
@@ -1945,6 +3032,12 @@ void ellipse( InputOutputArray _img, Point center, Size axes,
     CV_INSTRUMENT_REGION();
 
     Mat img = _img.getMat();
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( line_type == cv::LINE_AA && img.depth() != CV_8U )
         line_type = 8;
@@ -1953,7 +3046,7 @@ void ellipse( InputOutputArray _img, Point center, Size axes,
         thickness <= MAX_THICKNESS && 0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     int _angle = cvRound(angle);
     int _start_angle = cvRound(start_angle);
@@ -1967,6 +3060,51 @@ void ellipse( InputOutputArray _img, Point center, Size axes,
 
     EllipseEx( img, _center, _axes, _angle, _start_angle,
                _end_angle, buf, thickness, line_type );
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
+}
+
+void bmcpu_ellipse(InputOutputArray _img, const RotatedRect& box, const Scalar& color,
+             int thickness, int lineType)
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put((Point2f &)box.center));
+    CV_Assert(0 == sender.put((Size2f &)box.size));
+    CV_Assert(0 == sender.put((float &)box.angle));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(lineType));
+
+    CV_Assert(0 == sender.run("bmcpu_ellipse2"));
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    ellipse(_img, box, color, thickness, lineType);
+#endif
+
+    return;
 }
 
 void ellipse(InputOutputArray _img, const RotatedRect& box, const Scalar& color,
@@ -1975,6 +3113,12 @@ void ellipse(InputOutputArray _img, const RotatedRect& box, const Scalar& color,
     CV_INSTRUMENT_REGION();
 
     Mat img = _img.getMat();
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( lineType == cv::LINE_AA && img.depth() != CV_8U )
         lineType = 8;
@@ -1983,7 +3127,7 @@ void ellipse(InputOutputArray _img, const RotatedRect& box, const Scalar& color,
                thickness <= MAX_THICKNESS );
 
     double buf[4];
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     int _angle = cvRound(box.angle);
     Point2l center(cvRound(box.center.x),
@@ -1995,6 +3139,12 @@ void ellipse(InputOutputArray _img, const RotatedRect& box, const Scalar& color,
     axes.width  = (axes.width  << (XY_SHIFT - 1)) + cvRound((box.size.width - axes.width)*(XY_ONE>>1));
     axes.height = (axes.height << (XY_SHIFT - 1)) + cvRound((box.size.height - axes.height)*(XY_ONE>>1));
     EllipseEx( img, center, axes, _angle, 0, 360, buf, thickness, lineType );
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
 }
 
 void fillConvexPoly( InputOutputArray _img, const Point* pts, int npts,
@@ -2006,15 +3156,76 @@ void fillConvexPoly( InputOutputArray _img, const Point* pts, int npts,
 
     if( !pts || npts <= 0 )
         return;
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( line_type == cv::LINE_AA && img.depth() != CV_8U )
         line_type = 8;
 
     double buf[4];
     CV_Assert( 0 <= shift && shift <=  XY_SHIFT );
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
     std::vector<Point2l> _pts(pts, pts + npts);
     FillConvexPoly( img, _pts.data(), npts, buf, line_type, shift );
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
+}
+
+void bmcpu_fillPoly( InputOutputArray _img, const Point** pts, const int* npts, int ncontours,
+               const Scalar& color, int line_type,
+               int shift, Point offset )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+    int pts_nums = *npts;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(pts_nums));
+    for (int i = 0; i<ncontours; i++){
+        for (int j=0;j<pts_nums;j++) {
+            Point p11 = ((*pts)[j+i*pts_nums]);
+            CV_Assert(0 == sender.put((Point2f &)p11));
+        }
+    }
+    CV_Assert(0 == sender.put(ncontours));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(shift));
+    CV_Assert(0 == sender.put((Point2f &)offset));
+    CV_Assert(0 == sender.run("bmcpu_fillPoly"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+
+    fillPoly( _img, pts, npts, ncontours, color, line_type, shift, offset );
+#endif
+
+    return;
 }
 
 void fillPoly( InputOutputArray _img, const Point** pts, const int* npts, int ncontours,
@@ -2025,13 +3236,19 @@ void fillPoly( InputOutputArray _img, const Point** pts, const int* npts, int nc
 
     Mat img = _img.getMat();
 
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
     if( line_type == cv::LINE_AA && img.depth() != CV_8U )
         line_type = 8;
 
     CV_Assert( pts && npts && ncontours >= 0 && 0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     std::vector<PolyEdge> edges;
 
@@ -2047,6 +3264,60 @@ void fillPoly( InputOutputArray _img, const Point** pts, const int* npts, int nc
     }
 
     FillEdgeCollection(img, edges, buf, line_type);
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
+}
+
+void bmcpu_polylines( InputOutputArray _img, const Point* const* pts, const int* npts, int ncontours, bool isClosed,
+                const Scalar& color, int thickness, int line_type, int shift )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+    int pts_nums = *npts;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(pts_nums));
+    for (int i = 0; i<ncontours; i++){
+        for (int j=0;j<pts_nums;j++) {
+            Point p11 = ((*pts)[j+i*pts_nums]);
+            CV_Assert(0 == sender.put((Point2f &)p11));
+        }
+    }
+    CV_Assert(0 == sender.put(ncontours));
+    CV_Assert(0 == sender.put(isClosed));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(shift));
+    CV_Assert(0 == sender.run("bmcpu_polylines"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    polylines( _img, pts, npts, ncontours, isClosed, color, thickness, line_type, shift );
+#endif
+
+    return;
 }
 
 void polylines( InputOutputArray _img, const Point* const* pts, const int* npts, int ncontours, bool isClosed,
@@ -2055,6 +3326,12 @@ void polylines( InputOutputArray _img, const Point* const* pts, const int* npts,
     CV_INSTRUMENT_REGION();
 
     Mat img = _img.getMat();
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     if( line_type == cv::LINE_AA && img.depth() != CV_8U )
         line_type = 8;
@@ -2064,12 +3341,18 @@ void polylines( InputOutputArray _img, const Point* const* pts, const int* npts,
                0 <= shift && shift <= XY_SHIFT );
 
     double buf[4];
-    scalarToRawData( color, buf, img.type(), 0 );
+    scalarToRawData_Darwing(_img,color, buf);
 
     for( int i = 0; i < ncontours; i++ )
     {
         std::vector<Point2l> _pts(pts[i], pts[i]+npts[i]);
         PolyLine( img, _pts.data(), npts[i], isClosed, buf, thickness, line_type, shift );
+    }
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
     }
 }
 
@@ -2289,6 +3572,51 @@ inline void readCheck(int &c, int &i, const String &text, int fontFace)
 
 extern const char* g_HersheyGlyphs[];
 
+void bmcpu_putText( InputOutputArray _img, const String& text, Point org,
+              int fontFace, double fontScale, Scalar color,
+              int thickness, int line_type, bool bottomLeftOrigin )
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+
+    Mat img = _img.getMat();
+    int img_flag = 0;
+
+    if (!img.u || !img.u->addr){
+        bmcv::attachDeviceMemory(img);
+        bmcv::uploadMat(img);
+        img_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(img.card), 8192);
+
+    String ss = text;
+    CV_Assert(0 == sender.put(img));
+    CV_Assert(0 == sender.put(ss));
+    CV_Assert(0 == sender.put(org));
+    CV_Assert(0 == sender.put(fontFace));
+    CV_Assert(0 == sender.put(fontScale));
+    CV_Assert(0 == sender.put((Scalar &)color));
+    CV_Assert(0 == sender.put(thickness));
+    CV_Assert(0 == sender.put(line_type));
+    CV_Assert(0 == sender.put(bottomLeftOrigin));
+
+    CV_Assert(0 == sender.run("bmcpu_putText"));
+
+    if (img_flag){
+        bmcv::downloadMat(img);
+        if (img.u && CV_XADD(&img.u->refcount, -1) == 1 )
+            img.deallocate();
+    }
+
+    /* nothing to be return, only device memory is changed */
+#else
+    putText(_img, text, org, fontFace, fontScale, color, thickness, line_type, bottomLeftOrigin);
+#endif
+
+    return;
+}
+
 void putText( InputOutputArray _img, const String& text, Point org,
               int fontFace, double fontScale, Scalar color,
               int thickness, int line_type, bool bottomLeftOrigin )
@@ -2302,9 +3630,16 @@ void putText( InputOutputArray _img, const String& text, Point org,
     }
     Mat img = _img.getMat();
     const int* ascii = getFontData(fontFace);
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::downloadMat(img);
+#endif
+    }
 
     double buf[4];
     scalarToRawData(color, buf, img.type(), 0);
+    scalarToRawData_Darwing(_img,color, buf);
 
     int base_line = -(ascii[0] & 15);
     int hscale = cvRound(fontScale*XY_ONE), vscale = hscale;
@@ -2355,6 +3690,14 @@ void putText( InputOutputArray _img, const String& text, Point org,
         }
         view_x += dx;
     }
+
+    if(img.avOK())
+    {
+#ifdef HAVE_BMCV
+        bmcv::uploadMat(img);
+#endif
+    }
+    return;
 }
 
 Size getTextSize( const String& text, int fontFace, double fontScale, int thickness, int* _base_line)

@@ -289,7 +289,8 @@ bool VideoWriter_IntelMFX::write_one(cv::InputArray bgr)
 }
 
 Ptr<IVideoWriter> cv::create_MFX_writer(const std::string& filename, int _fourcc, double fps,
-                                        const Size& frameSize, const VideoWriterParameters& params)
+                                        const Size& frameSize, const VideoWriterParameters& params,
+                                        int id, const std::string &encodeParams)
 {
     if (codecIdByFourCC(_fourcc) > 0)
     {

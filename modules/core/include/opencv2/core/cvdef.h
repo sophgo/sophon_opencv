@@ -971,4 +971,13 @@ protected:
 #include "opencv2/core/fast_math.hpp" // define cvRound(double)
 #endif
 
+// bitmain private definition
+#ifdef WIN32
+#define bm_int64        long long
+#define bm_uint64       unsigned long long
+#else
+#define bm_int64        long
+#define bm_uint64       unsigned long long
+#endif
+
 #endif // OPENCV_CORE_CVDEF_H

@@ -58,7 +58,7 @@ struct OpenCV_VideoIO_Plugin_API_v0_0_api_entries
 
     @note API-CALL 2, API-Version == 0
      */
-    CvResult (CV_API_CALL *Capture_open)(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle);
+    CvResult (CV_API_CALL *Capture_open)(const char* filename, int camera_index, CV_OUT CvPluginCapture* handle, int id);
 
     /** @brief Release Capture handle
 
@@ -121,7 +121,7 @@ struct OpenCV_VideoIO_Plugin_API_v0_0_api_entries
     @note API-CALL 8, API-Version == 0
      */
     CvResult (CV_API_CALL *Writer_open)(const char* filename, int fourcc, double fps, int width, int height, int isColor,
-                                         CV_OUT CvPluginWriter* handle);
+                                         CV_OUT CvPluginWriter* handle, int id, const char* encodeParams);
 
     /** @brief Release Writer handle
 
@@ -183,7 +183,7 @@ struct OpenCV_VideoIO_Plugin_API_v0_1_api_entries
     CvResult (CV_API_CALL* Writer_open_with_params)(
         const char* filename, int fourcc, double fps, int width, int height,
         int* params, unsigned n_params,
-        CV_OUT CvPluginWriter* handle
+        CV_OUT CvPluginWriter* handle, int id,const std::string &encodeParams 
     );
 }; // OpenCV_VideoIO_Plugin_API_v0_1_api_entries
 

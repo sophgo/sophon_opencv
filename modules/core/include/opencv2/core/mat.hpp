@@ -55,6 +55,13 @@
 
 #include <type_traits>
 
+//#include "bmcv_api.h"
+
+extern "C" {
+#include "libavcodec/avcodec.h"
+#include "bmcv_api_ext.h"
+}
+
 namespace cv
 {
 
@@ -473,6 +480,12 @@ enum UMatUsageFlags
 
 struct CV_EXPORTS UMatData;
 
+struct CV_EXPORTS UMatOpaque
+{
+    unsigned int magic_number;
+    UMatData * data;
+};
+
 /** @brief  Custom array allocator
 */
 class CV_EXPORTS MatAllocator
@@ -480,6 +493,22 @@ class CV_EXPORTS MatAllocator
 public:
     MatAllocator() {}
     virtual ~MatAllocator() {}
+
+    virtual UMatData* allocate(int dims, const int* sizes, int type, void* data, size_t* step, int id = 0) const {
+        CV_UNUSED(dims); CV_UNUSED(sizes); CV_UNUSED(type); CV_UNUSED(data); CV_UNUSED(step); CV_UNUSED(id);
+        return NULL;
+    }
+    virtual UMatData* allocate(int size, int id = 0) const {
+        CV_UNUSED(size); CV_UNUSED(id);
+        return NULL;
+    }
+    virtual void flush(UMatData* u, size_t sz = 0) const {
+        CV_UNUSED(u); CV_UNUSED(sz);
+    }
+    virtual UMatData* allocate(int total, void *data0, bm_uint64 addr0, int fd0, int id = 0) const {
+        CV_UNUSED(total); CV_UNUSED(data0); CV_UNUSED(addr0); CV_UNUSED(fd0); CV_UNUSED(id);
+        return NULL;
+    }
 
     // let's comment it off for now to detect and fix all the uses of allocator
     //virtual void allocate(int dims, const int* sizes, int type, int*& refcount,
@@ -503,6 +532,8 @@ public:
 
     // default implementation returns DummyBufferPoolController
     virtual BufferPoolController* getBufferPoolController(const char* id = NULL) const;
+
+    virtual void invalidate(UMatData*  u, size_t size = 0) const {CV_UNUSED(u); CV_UNUSED(size); }
 };
 
 
@@ -545,7 +576,8 @@ struct CV_EXPORTS UMatData
     enum MemoryFlag { COPY_ON_MAP=1, HOST_COPY_OBSOLETE=2,
         DEVICE_COPY_OBSOLETE=4, TEMP_UMAT=8, TEMP_COPIED_UMAT=24,
         USER_ALLOCATED=32, DEVICE_MEM_MAPPED=64,
-        ASYNC_CLEANUP=128
+        ASYNC_CLEANUP=128, DEVICE_MEM_ATTACHED=256,
+        AVFRAME_ATTACHED=512
     };
     UMatData(const MatAllocator* allocator);
     ~UMatData();
@@ -571,6 +603,13 @@ struct CV_EXPORTS UMatData
     uchar* data;
     uchar* origdata;
     size_t size;
+
+    int fd;
+    bm_uint64 addr;
+    AVFrame* frame;
+
+    bm_handle_t hid;
+    bm_device_mem_t mem;
 
     UMatData::MemoryFlag flags;
     void* handle;
@@ -818,13 +857,15 @@ public:
      */
     Mat() CV_NOEXCEPT;
 
+    Mat(AVFrame *frame, int id);
+
     /** @overload
     @param rows Number of rows in a 2D array.
     @param cols Number of columns in a 2D array.
     @param type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel matrices, or
     CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to CV_CN_MAX channels) matrices.
     */
-    Mat(int rows, int cols, int type);
+    Mat(int rows, int cols, int type, SophonDevice device=SophonDevice());
 
     /** @overload
     @param size 2D array size: Size(cols, rows) . In the Size() constructor, the number of rows and the
@@ -832,7 +873,7 @@ public:
     @param type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel matrices, or
     CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to CV_CN_MAX channels) matrices.
       */
-    Mat(Size size, int type);
+    Mat(Size size, int type, SophonDevice device=SophonDevice());
 
     /** @overload
     @param rows Number of rows in a 2D array.
@@ -843,7 +884,7 @@ public:
     the particular value after the construction, use the assignment operator
     Mat::operator=(const Scalar& value) .
     */
-    Mat(int rows, int cols, int type, const Scalar& s);
+    Mat(int rows, int cols, int type, const Scalar& s, SophonDevice device=SophonDevice());
 
     /** @overload
     @param size 2D array size: Size(cols, rows) . In the Size() constructor, the number of rows and the
@@ -854,7 +895,7 @@ public:
     the particular value after the construction, use the assignment operator
     Mat::operator=(const Scalar& value) .
       */
-    Mat(Size size, int type, const Scalar& s);
+    Mat(Size size, int type, const Scalar& s, SophonDevice device=SophonDevice());
 
     /** @overload
     @param ndims Array dimensionality.
@@ -862,14 +903,14 @@ public:
     @param type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel matrices, or
     CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to CV_CN_MAX channels) matrices.
     */
-    Mat(int ndims, const int* sizes, int type);
+    Mat(int ndims, const int* sizes, int type, SophonDevice device=SophonDevice());
 
     /** @overload
     @param sizes Array of integers specifying an n-dimensional array shape.
     @param type Array type. Use CV_8UC1, ..., CV_64FC4 to create 1-4 channel matrices, or
     CV_8UC(n), ..., CV_64FC(n) to create multi-channel (up to CV_CN_MAX channels) matrices.
     */
-    Mat(const std::vector<int>& sizes, int type);
+    Mat(const std::vector<int>& sizes, int type, SophonDevice device=SophonDevice());
 
     /** @overload
     @param ndims Array dimensionality.
@@ -880,7 +921,7 @@ public:
     the particular value after the construction, use the assignment operator
     Mat::operator=(const Scalar& value) .
     */
-    Mat(int ndims, const int* sizes, int type, const Scalar& s);
+    Mat(int ndims, const int* sizes, int type, const Scalar& s, SophonDevice device=SophonDevice());
 
     /** @overload
     @param sizes Array of integers specifying an n-dimensional array shape.
@@ -890,7 +931,7 @@ public:
     the particular value after the construction, use the assignment operator
     Mat::operator=(const Scalar& value) .
     */
-    Mat(const std::vector<int>& sizes, int type, const Scalar& s);
+    Mat(const std::vector<int>& sizes, int type, const Scalar& s, SophonDevice device=SophonDevice());
 
 
     /** @overload
@@ -917,6 +958,46 @@ public:
     and the actual step is calculated as cols*elemSize(). See Mat::elemSize.
     */
     Mat(int rows, int cols, int type, void* data, size_t step=AUTO_STEP);
+
+
+#if 1  // comment this part for backward compatible -- xun
+    /** @overload
+    @param device  pcie card index, pre-allocated
+    */
+    Mat(SophonDevice device);
+
+    /** @overload
+    @param height  Image height.
+    @param width   Image width.
+    @param total   allocated memory size
+    @param _type   Array type. CV_8UC1 / CV_8UC3
+    @param _steps  step of image data. If NULL, use AUTO_STEP
+    @param _data   system buffer pointer. If NULL, allocate it internally.
+    @param addr    device buffer pointer. Valid in full range
+    @param fd      device memory handle. If negative, no valid device memory and allocate it internally.
+    @param id      pcie card index. default is zero.
+    */
+    Mat(int height, int width, int total, int _type, const size_t* _steps, void* _data, bm_uint64  addr, int fd, SophonDevice device = SophonDevice());
+
+
+    /**@brief Mat memory creation.
+    @param height  Image height.
+    @param width   Image width.
+    @param total   allocated memory size
+    @param _type   Array type. CV_8UC1 / CV_8UC3
+    @param _steps  step of image data. If NULL, use AUTO_STEP
+    @param _data   system buffer pointer. If NULL, allocate it internally.
+    @param addr    device buffer pointer. Valid in full range
+    @param fd      device memory handle. If negative, no valid device memory and allocate it internally.
+    @param id      pcie card index. default is zero.
+    */
+    void create(int height, int width, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, int id = 0);
+
+    // for backward compatible, move to the end
+    void create(int d, const int* _sizes, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, int id = 0);
+    Mat(int d, const int *_sizes, int total, int _type, const size_t* _steps, void* _data, bm_uint64 addr, int fd, SophonDevice device);
+
+#endif
 
     /** @overload
     @param size 2D array size: Size(cols, rows) . In the Size() constructor, the number of rows and the
@@ -1205,6 +1286,7 @@ public:
     array copy is a continuous array occupying total()*elemSize() bytes.
      */
     CV_NODISCARD_STD Mat clone() const;
+    Mat cloneAll() const CV_NODISCARD;
 
     /** @brief Copies the matrix to another one.
 
@@ -1222,6 +1304,7 @@ public:
     reallocated.
      */
     void copyTo( OutputArray m ) const;
+    void copyAllTo( OutputArray m ) const;
 
     /** @overload
     @param m Destination matrix. If it does not have a proper size or type before the operation, it is
@@ -1457,6 +1540,8 @@ public:
     */
     CV_NODISCARD_STD static MatExpr eye(Size size, int type);
 
+    void create(AVFrame *frame, int id);
+
     /** @brief Allocates new array data if needed.
 
     This is one of the key Mat methods. Most new-style OpenCV functions and methods that produce arrays
@@ -1490,26 +1575,26 @@ public:
     @param cols New number of columns.
     @param type New matrix type.
      */
-    void create(int rows, int cols, int type);
+    void create(int rows, int cols, int type, int id = 0);
 
     /** @overload
     @param size Alternative new matrix size specification: Size(cols, rows)
     @param type New matrix type.
     */
-    void create(Size size, int type);
+    void create(Size size, int type, int id = 0);
 
     /** @overload
     @param ndims New array dimensionality.
     @param sizes Array of integers specifying a new array shape.
     @param type New matrix type.
     */
-    void create(int ndims, const int* sizes, int type);
+    void create(int ndims, const int* sizes, int type, int id = 0);
 
     /** @overload
     @param sizes Array of integers specifying a new array shape.
     @param type New matrix type.
     */
-    void create(const std::vector<int>& sizes, int type);
+    void create(const std::vector<int>& sizes, int type, int id = 0);
 
     /** @brief Increments the reference counter.
 
@@ -1521,6 +1606,14 @@ public:
     asynchronously in different threads.
      */
     void addref();
+
+    bool  avOK() const;
+    bool  avComp() const;
+    int   avRows() const;
+    int   avCols() const;
+    int   avFormat() const;
+    int   avStep(int idx) const;
+    bm_uint64 avAddr(int idx) const;
 
     /** @brief Decrements the reference counter and deallocates the matrix if needed.
 
@@ -2158,6 +2251,9 @@ public:
 
     MatSize size;
     MatStep step;
+
+    int card;
+    int fromhardware;
 
 protected:
     template<typename _Tp, typename Functor> void forEach_impl(const Functor& operation);
@@ -3792,5 +3888,9 @@ CV_EXPORTS MatExpr abs(const MatExpr& e);
 } // cv
 
 #include "opencv2/core/mat.inl.hpp"
+
+#include "opencv2/core/hal.hpp"
+#include "opencv2/core/av.hpp"
+#include "opencv2/core/bmcv.hpp"
 
 #endif // OPENCV_CORE_MAT_HPP

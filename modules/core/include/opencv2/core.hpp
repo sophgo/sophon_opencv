@@ -3371,4 +3371,7 @@ struct ParamType<_Tp, typename std::enable_if< std::is_enum<_Tp>::value >::type>
 #include "opencv2/core/optim.hpp"
 #include "opencv2/core/ovx.hpp"
 
+#include "opencv2/core/bmcv.hpp"
+#include "opencv2/core/cv_bmcpu.hpp"
+
 #endif /*OPENCV_CORE_HPP*/

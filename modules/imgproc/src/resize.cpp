@@ -4086,8 +4086,36 @@ void cv::resize( InputArray _src, OutputArray _dst, Size dsize,
         srcUMat = _src.getUMat();
 
     Mat src = _src.getMat();
+
+#if (defined HAVE_BMCV) && (defined USING_SOC)
+    char *softResize = getenv("SET_SOC_SOFT_RESIZE");
+    int softResizeInt = 0;
+    if(softResize)
+        softResizeInt = atoi(softResize);
+
+    if((interpolation == INTER_LINEAR /*|| interpolation == INTER_NEAREST*/)&&
+       (!(src.u ==0 ||src.u->addr == 0)) && softResizeInt == 0 &&
+       src.depth() == CV_8U && src.u->addr &&
+       (src.cols > 240 && src.rows > 240) &&(dsize.height >240 && dsize.width > 240) )
+        // only support 8U resize, for dst is small than  240 cpu will be faster
+    {
+        if(bmcv::hwResize( src, _dst, dsize, interpolation)== 0){
+            Mat dst = _dst.getMat();
+            dst.fromhardware = 1; // only for jpeg decoder now
+            return;
+        }
+    }
+#else
+    if (src.avOK())
+    {
+        printf("cv::resize does not support yuv mat format, please use bmcv::resize or bmcv::convert interface\n");
+        CV_Assert(0);
+    }
+#endif
+
     _dst.create(dsize, src.type());
     Mat dst = _dst.getMat();
+    dst.fromhardware = 0; // only for jpeg decoder now
 
     if (dsize == ssize)
     {

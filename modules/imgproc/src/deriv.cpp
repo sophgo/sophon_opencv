@@ -411,6 +411,70 @@ static bool ocl_sepFilter3x3_8UC1(InputArray _src, OutputArray _dst, int ddepth,
 }
 #endif
 
+void cv::bmcpu_Sobel( InputArray _src, OutputArray _dst, int ddepth, int dx, int dy,
+                      int ksize, double scale, double delta, int borderType )
+{
+    CV_INSTRUMENT_REGION();
+
+#if !defined(USING_SOC) && defined(BM1684_CHIP)
+
+    Mat src = _src.getMat();
+    Mat dst = _dst.getMat();
+    int src_flag = 0, dst_flag = 0;
+    int stype = src.type(), sdepth = CV_MAT_DEPTH(stype);
+    int dtype;
+    int card = src.card;
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    if (ddepth < 0)
+        ddepth = sdepth;
+    dtype = CV_MAKE_TYPE(ddepth, CV_MAT_CN(stype));
+
+    dst.create( src.size(), dtype, card );
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(ddepth));
+    CV_Assert(0 == sender.put(dx));
+    CV_Assert(0 == sender.put(dy));
+    CV_Assert(0 == sender.put(ksize));
+    CV_Assert(0 == sender.put(scale));
+    CV_Assert(0 == sender.put(delta));
+    CV_Assert(0 == sender.put(borderType));
+
+    CV_Assert(0 == sender.run("bmcpu_Sobel"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+
+    _dst.assign(dst);
+
+#else
+    Sobel(_src, _dst, ddepth, dx, dy, ksize, scale, delta, borderType);
+#endif
+
+    return;
+}
+
 void cv::Sobel( InputArray _src, OutputArray _dst, int ddepth, int dx, int dy,
                 int ksize, double scale, double delta, int borderType )
 {
@@ -453,6 +517,15 @@ void cv::Sobel( InputArray _src, OutputArray _dst, int ddepth, int dx, int dy,
     if(!(borderType & BORDER_ISOLATED))
         src.locateROI( wsz, ofs );
 
+#if (defined HAVE_BMCV)
+    if ((_src.type() == CV_8UC1) && (_dst.type() == CV_8UC1) && (borderType == BORDER_DEFAULT))
+    {
+        if (bmcv::hwSobel(src, dst, dx, dy, ksize, scale, delta) == 0)
+        {
+            return;
+        }
+    }
+#endif
     CALL_HAL(sobel, cv_hal_sobel, src.ptr(), src.step, dst.ptr(), dst.step, src.cols, src.rows, sdepth, ddepth, cn,
              ofs.x, ofs.y, wsz.width - src.cols - ofs.x, wsz.height - src.rows - ofs.y, dx, dy, ksize, scale, delta, borderType&~BORDER_ISOLATED);
 

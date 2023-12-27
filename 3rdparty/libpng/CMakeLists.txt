@@ -35,6 +35,8 @@ if(ARM OR AARCH64)
     endif()
     list(APPEND lib_srcs arm/arm_init.c arm/filter_neon_intrinsics.c arm/palette_neon_intrinsics.c)
     add_definitions(-DPNG_ARM_NEON_OPT=2)
+    add_definitions(-DPNG_ARM_NEON_API_SUPPORTED)
+    add_definitions(-DPNG_ARM_NEON_CHECK_SUPPORTED)
   else()
     add_definitions(-DPNG_ARM_NEON_OPT=0) # NEON assembler is not supported
   endif()

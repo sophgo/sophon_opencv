@@ -608,6 +608,62 @@ static bool validateGaussianBlurKernel(std::vector<T>& kernel)
     return isValid;
 }
 
+void bmcpu_GaussianBlur(InputArray _src, OutputArray _dst, Size ksize,
+                        double sigma1, double sigma2,
+                        int borderType)
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    int type = _src.type();
+    Size size = _src.size();
+
+    Mat src = _src.getMat();
+    Mat dst = _dst.getMat();
+    int card = src.card;
+    int dst_flag = 0, src_flag = 0;
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    dst.create( size, type, card );
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(ksize));
+    CV_Assert(0 == sender.put(sigma1));
+    CV_Assert(0 == sender.put(sigma2));
+    CV_Assert(0 == sender.put(borderType));
+
+    CV_Assert(0 == sender.run("bmcpu_GaussianBlur"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+
+    _dst.assign(dst);
+#else
+    GaussianBlur(_src, _dst, ksize, sigma1, sigma2, borderType);
+#endif
+
+    return;
+}
+
 void GaussianBlur(InputArray _src, OutputArray _dst, Size ksize,
                   double sigma1, double sigma2,
                   int borderType)
@@ -741,6 +797,14 @@ void GaussianBlur(InputArray _src, OutputArray _dst, Size ksize,
     Size wsz(src.cols, src.rows);
     if(!(borderType & BORDER_ISOLATED))
         src.locateROI( wsz, ofs );
+
+#if (defined HAVE_BMCV)
+    if ((src.type() == CV_8UC1) && (dst.type() == CV_8UC1) && (borderType == BORDER_DEFAULT)) {
+       if (cv::bmcv::hwGaussianBlur(src, dst, ksize.width, ksize.height, sigma1, sigma2) == 0 ) {
+	   return;
+	}
+    }
+#endif
 
     CALL_HAL(gaussianBlur, cv_hal_gaussianBlur, src.ptr(), src.step, dst.ptr(), dst.step, src.cols, src.rows, sdepth, cn,
              ofs.x, ofs.y, wsz.width - src.cols - ofs.x, wsz.height - src.rows - ofs.y, ksize.width, ksize.height,

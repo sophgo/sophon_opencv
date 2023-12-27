@@ -223,7 +223,7 @@ bool MotionJpegCapture::open(const String& filename)
     return isOpened();
 }
 
-Ptr<IVideoCapture> createMotionJpegCapture(const String& filename)
+Ptr<IVideoCapture> createMotionJpegCapture(const String& filename, int id)
 {
     Ptr<MotionJpegCapture> mjdecoder(new MotionJpegCapture(filename));
     if( mjdecoder->isOpened() )

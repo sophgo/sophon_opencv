@@ -48,7 +48,7 @@
 
 #include "precomp.hpp"
 #include "opencl_kernels_core.hpp"
-
+#include "libyuv.h"
 
 namespace cv
 {
@@ -301,6 +301,195 @@ BinaryFunc getCopyMaskFunc(size_t esz)
     return esz <= 32 && copyMaskTab[esz] ? copyMaskTab[esz] : copyMaskGeneric;
 }
 
+static int memcpy_d2d(Mat& src, Mat& dst)
+{
+	int count = 0;
+    if (src.u != NULL && dst.u != NULL && src.type() == dst.type() &&
+		src.cols == dst.cols && src.rows == dst.rows && src.u->addr && dst.u->addr) {
+#ifdef HAVE_BMCV
+		bm_handle_t handle = src.u->hid ? src.u->hid : bmcv::getCard();
+
+		if (src.avOK()){
+			count = av::copy(src.u->frame, dst.u->frame, src.card);
+		} else {
+#ifdef USING_SOC
+			bm_device_mem_t mem = bm_mem_from_device((bm_uint64)dst.u->addr, dst.u->size);
+			bm_mem_invalidate_device_mem(handle, &mem);
+#endif
+			if (src.step[0] == dst.step[0]){
+				bm_device_mem_t srcmem = bm_mem_from_device(src.u->addr, src.u->size);
+				bm_device_mem_t dstmem = bm_mem_from_device(dst.u->addr, dst.u->size);
+
+				//bm_memcpy_d2d_byte(handle, dstmem, 0, srcmem, 0, src.u->size);
+				bm_memcpy_c2c(handle, handle, srcmem, dstmem, false);
+				count += src.u->size;
+			} else {
+				for (int i = 0; i < src.rows; i++){
+					bm_device_mem_t srcmem = bm_mem_from_device(src.u->addr + i*src.step[0], src.cols*src.step[1]);
+					bm_device_mem_t dstmem = bm_mem_from_device(dst.u->addr + i*dst.step[0], src.cols*src.step[1]);
+					//bm_memcpy_d2d_byte(handle, dstmem, i*dst.step[0], srcmem,
+					//		i*src.step[0], src.cols*src.step[1]);
+					bm_memcpy_c2c(handle, handle, srcmem, dstmem, false);
+					count += src.cols * src.step[1];
+				}
+			}
+		}
+#endif
+    }
+
+    return count;
+}
+
+#if IPP_VERSION_X100 >= 201700
+void instrument_fun_wrap(const uchar *sptr, int srcstep, uchar *dptr, int dststep, IppiSizeL ippisize);
+void instrument_fun_wrap(const uchar *sptr, int srcstep, uchar *dptr, int dststep, IppiSizeL ippisize)
+{
+     CV_IPP_RUN_FAST(CV_INSTRUMENT_FUN_IPP(ippiCopy_8u_C1R_L, sptr, srcstep, dptr, dststep, ippisize) >= 0)
+}
+#endif
+/* dst = src */
+
+void Mat::copyAllTo( OutputArray _dst ) const
+{
+    CV_INSTRUMENT_REGION();
+
+#ifdef HAVE_CUDA
+    if (_dst.isGpuMat())
+    {
+        _dst.getGpuMat().upload(*this);
+        return;
+    }
+#endif
+
+    int dtype = _dst.type();
+    if( _dst.fixedType() && dtype != type() )
+    {
+        CV_Assert( channels() == CV_MAT_CN(dtype) );
+        convertTo( _dst, dtype );
+        return;
+    }
+
+    if( empty() )
+    {
+        _dst.release();
+        return;
+    }
+
+    Mat srcMat = *this;
+    if( _dst.isUMat() )
+    {
+        _dst.create( dims, size.p, type());
+        UMat dst = _dst.getUMat();
+        CV_Assert(dst.u != NULL);
+        size_t i, sz[CV_MAX_DIM] = {0}, dstofs[CV_MAX_DIM], esz = elemSize();
+        CV_Assert(dims > 0 && dims < CV_MAX_DIM);
+        for( i = 0; i < (size_t)dims; i++ )
+            sz[i] = size.p[i];
+        sz[dims-1] *= esz;
+        dst.ndoffset(dstofs);
+        dstofs[dims-1] *= esz;
+        //Copy system memory
+        dst.u->currAllocator->upload(dst.u, data, dims, sz, dstofs, dst.step.p, step.p);
+
+        //Copy device memroy
+        //TODO
+
+        return;
+    }
+
+    if( dims <= 2 )
+    {
+        if (!_dst.isMat()) _dst.create( rows, cols, type() );
+        Mat dst = _dst.getMat();
+        if (_dst.isMat()){
+		    CV_Assert(!_dst.fixedSize() || dst.size() == Size(cols, rows));
+            CV_Assert(!_dst.fixedType() || dst.type() == type());
+            if (avOK()){
+			    AVFrame *f = av::create(avRows(), avCols(), avFormat(), NULL, 0, -1,
+						NULL, NULL, u->frame->colorspace, u->frame->color_range, card);
+			    dst.create(f, card);
+		    } else
+			    dst.create( rows, cols, type(), card ); // if not avOK(), do not copy device memory
+        }
+		if( data == dst.data ) {
+            if (_dst.isMat()) {
+#ifndef USING_SOC
+                memcpy_d2d(srcMat, dst);
+#endif
+                _dst.assign(dst);
+            }
+            return;
+        }
+
+        if( rows > 0 && cols > 0 )
+        {
+            Mat src = *this;
+            Size sz = getContinuousSize2D(src, dst, (int)elemSize());
+            CV_CheckGE(sz.width, 0, "");
+
+            const uchar* sptr = src.data;
+            uchar* dptr = dst.data;
+
+#if IPP_VERSION_X100 >= 201700
+//            CV_IPP_RUN_FAST(CV_INSTRUMENT_FUN_IPP(ippiCopy_8u_C1R_L, sptr, (int)src.step, dptr, (int)dst.step, ippiSizeL(sz.width, sz.height)) >= 0)
+#ifdef USING_SOC
+            if (!avOK())
+#endif
+            instrument_fun_wrap(sptr, (int)src.step, dptr, (int)dst.step, ippiSizeL(sz.width, sz.height));
+            if (_dst.isMat()){
+#ifdef USING_SOC
+                if (avOK())
+#endif
+                memcpy_d2d(srcMat, dst);
+                _dst.assign(dst);
+            }
+            return;
+#endif
+#ifdef USING_SOC
+            if (!avOK())
+#endif
+            {
+#ifdef HAVE_LIBYUV
+                libyuv::CopyPlane(sptr,src.step,dptr,dst.step,sz.width, sz.height);
+#else
+                for (; sz.height--; sptr += src.step, dptr += dst.step)
+                    memcpy(dptr, sptr, sz.width);
+#endif
+            }
+            //Copy device memroy
+            if (_dst.isMat()){
+#ifdef USING_SOC
+                if (avOK())
+#endif
+                memcpy_d2d(srcMat, dst);
+                _dst.assign(dst);
+            }
+        }
+
+        return;
+    }
+
+    _dst.create( dims, size, type());
+    Mat dst = _dst.getMat();
+    if( data == dst.data ){
+        return;
+	}
+
+    if( total() != 0 )
+    {
+        const Mat* arrays[] = { this, &dst };
+        uchar* ptrs[2] = {};
+        NAryMatIterator it(arrays, ptrs, 2);
+        size_t sz = it.size*elemSize();
+
+        for( size_t i = 0; i < it.nplanes; i++, ++it )
+            memcpy(ptrs[1], ptrs[0], sz);
+
+        //Copy device memroy
+        //TODO
+    }
+}
+
 /* dst = src */
 void Mat::copyTo( OutputArray _dst ) const
 {
@@ -346,10 +535,27 @@ void Mat::copyTo( OutputArray _dst ) const
 
     if( dims <= 2 )
     {
-        _dst.create( rows, cols, type() );
+        if (!_dst.isMat()) _dst.create(rows, cols, type());
         Mat dst = _dst.getMat();
-        if( data == dst.data )
+        if (_dst.isMat()){
+            CV_Assert(!_dst.fixedSize() || dst.size() == Size(cols, rows));
+            CV_Assert(!_dst.fixedType() || dst.type() == type());
+            if (avOK()){
+                if (dst.empty() || !dst.avOK() || dst.avFormat() != avFormat() ||
+                    !(dst.u && dst.u->addr) || (BM_CARD_ID(dst.card) != BM_CARD_ID(card)))
+                {
+                    AVFrame *f = av::create(rows, cols, avFormat(), NULL, 0, -1,
+                        NULL, NULL, u->frame->colorspace, u->frame->color_range, card);
+                    dst.create(f, card);
+                }
+            } else
+                dst.create( rows, cols, type(), card ); // if not avOK(), do not copy device memory
+        }
+
+        if( data == dst.data ){
+            if (_dst.isMat()) _dst.assign(dst);
             return;
+        }
 
         if( rows > 0 && cols > 0 )
         {
@@ -361,11 +567,30 @@ void Mat::copyTo( OutputArray _dst ) const
             uchar* dptr = dst.data;
 
 #if IPP_VERSION_X100 >= 201700
-            CV_IPP_RUN_FAST(CV_INSTRUMENT_FUN_IPP(ippiCopy_8u_C1R_L, sptr, (int)src.step, dptr, (int)dst.step, ippiSizeL(sz.width, sz.height)) >= 0)
+#ifdef USING_SOC
+            if (!avOK())
+#endif
+                instrument_fun_wrap(sptr, (int)src.step, dptr, (int)dst.step, ippiSizeL(sz.width, sz.height));
+            if (avOK()) memcpy_d2d(src, dst);
+            if (_dst.isMat()) _dst.assign(dst);
+            return;
+            //CV_IPP_RUN_FAST(CV_INSTRUMENT_FUN_IPP(ippiCopy_8u_C1R_L, sptr, (int)src.step, dptr, (int)dst.step, ippiSizeL(sz.width, sz.height)) >= 0)
 #endif
 
-            for (; sz.height--; sptr += src.step, dptr += dst.step)
-                memcpy(dptr, sptr, sz.width);
+#ifdef USING_SOC
+            if (!avOK())
+#endif
+            {
+#ifdef HAVE_LIBYUV
+                libyuv::CopyPlane(sptr,src.step,dptr,dst.step,sz.width, sz.height);
+#else
+                for (; sz.height--; sptr += src.step, dptr += dst.step)
+                    memcpy(dptr, sptr, sz.width);
+#endif
+            }
+            if (avOK()) memcpy_d2d(src, dst);
+            if (_dst.isMat()) _dst.assign(dst);
+
         }
         return;
     }
@@ -1046,6 +1271,16 @@ void cv::copyMakeBorder( InputArray _src, OutputArray _dst, int top, int bottom,
         bottom -= dbottom;
         right -= dright;
     }
+
+#if 0
+    Size srcsize = src.size();
+    if(borderType == BORDER_CONSTANT &&(!(src.u ==0 ||src.u->paddr == 0))&& && _src.depth() == CV_8U
+        &&(srcsize.width >= 16 && srcsize.height >= 16))
+    {
+        if (bmcv::hwBorder(src, top, bottom, left, right, _dst, value) ==0 )
+            return;
+    }
+#endif
 
     _dst.create( src.rows + top + bottom, src.cols + left + right, type );
     Mat dst = _dst.getMat();

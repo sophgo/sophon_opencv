@@ -59,11 +59,11 @@ public:
         }
         return Ptr<IVideoCapture>();
     }
-    Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params) const CV_OVERRIDE
+    Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params, int id) const CV_OVERRIDE
     {
         if (fn_createCaptureFile_)
         {
-            Ptr<IVideoCapture> cap = fn_createCaptureFile_(filename);
+            Ptr<IVideoCapture> cap = fn_createCaptureFile_(filename, id);
             if (cap && !params.empty())
             {
                 applyParametersFallback(cap, params);
@@ -73,10 +73,10 @@ public:
         return Ptr<IVideoCapture>();
     }
     Ptr<IVideoWriter> createWriter(const std::string& filename, int fourcc, double fps,
-                                   const cv::Size& sz, const VideoWriterParameters& params) const CV_OVERRIDE
+                                   const cv::Size& sz, const VideoWriterParameters& params, int id=0, const std::string &encodeParams="") const CV_OVERRIDE
     {
         if (fn_createWriter_)
-            return fn_createWriter_(filename, fourcc, fps, sz, params);
+            return fn_createWriter_(filename, fourcc, fps, sz, params, id, encodeParams);
         return Ptr<IVideoWriter>();
     }
 }; // StaticBackend
@@ -134,17 +134,19 @@ public:
             return fn_createCaptureCamera_(camera, params);
         return Ptr<IVideoCapture>();
     }
-    Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params) const CV_OVERRIDE
+    Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params, int id) const CV_OVERRIDE
     {
-        if (fn_createCaptureFile_)
-            return fn_createCaptureFile_(filename, params);
+        if (fn_createCaptureFile_) {
+            return fn_createCaptureFile_(filename, params, id);
+        }
         return Ptr<IVideoCapture>();
     }
     Ptr<IVideoWriter> createWriter(const std::string& filename, int fourcc, double fps,
-                                   const cv::Size& sz, const VideoWriterParameters& params) const CV_OVERRIDE
+                                   const cv::Size& sz, const VideoWriterParameters& params,
+                                   int id=0, const std::string &encodeParams="") const CV_OVERRIDE
     {
         if (fn_createWriter_)
-            return fn_createWriter_(filename, fourcc, fps, sz, params);
+            return fn_createWriter_(filename, fourcc, fps, sz, params, id, encodeParams);
         return Ptr<IVideoWriter>();
     }
 }; // StaticBackendWithParams

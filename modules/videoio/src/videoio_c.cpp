@@ -75,6 +75,11 @@ CV_IMPL IplImage* cvRetrieveFrame(CvCapture* capture, int idx)
     return capture ? capture->retrieveFrame(idx) : 0;
 }
 
+CV_IMPL bool cvRetrieveArray(CvCapture* capture, cv::OutputArray image)
+{
+    return capture ? capture->retrieveArray(image) : false;
+}
+
 CV_IMPL double cvGetCaptureProperty(CvCapture* capture, int id)
 {
     return capture ? capture->getProperty(id) : 0;

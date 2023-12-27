@@ -185,6 +185,38 @@ typedef signed char schar;
 #define CV_HAL_GEMM_3_T 4
 //! @}
 
+//! @name BM card_id flags
+//! @{
+#define BM_ID_SHIFT         8
+#define BM_ID_MAX           (1 << BM_ID_SHIFT)
+
+#define BM_CARD_ID_MASK     (BM_ID_MAX - 1)
+#define BM_CARD_ID(card)    ((card) & BM_CARD_ID_MASK)
+
+#define BM_HEAP_SHIFT       3
+#define BM_HEAP_MAX         (1 << BM_HEAP_SHIFT)
+
+#define BM_CARD_HEAP_MASK   ((BM_HEAP_MAX - 1) << BM_ID_SHIFT)
+#define BM_CARD_HEAP(card)  (((card) & BM_CARD_HEAP_MASK ) >> BM_ID_SHIFT)
+
+#define BM_MEMFLAG_SHIFT    10
+#define BM_MEMFLAG_MAX      (1 << BM_MEMFLAG_SHIFT)
+
+#define BM_CARD_MEMFLAG_MASK    ((BM_MEMFLAG_MAX - 1) << (BM_HEAP_SHIFT + BM_ID_SHIFT))
+#define BM_CARD_MEMFLAG(card)   (((card) & BM_CARD_MEMFLAG_MASK) >> (BM_HEAP_SHIFT + BM_ID_SHIFT))
+
+#define BM_MAKEFLAG(attach, heap, card)   (BM_CARD_ID(card) + \
+            (((heap) << BM_ID_SHIFT) & BM_CARD_HEAP_MASK) + \
+            (((attach) << (BM_ID_SHIFT + BM_HEAP_SHIFT)) & BM_CARD_MEMFLAG_MASK))
+//! @}
+
+#ifndef MAGIC_JPEG
+#define MAGIC_JPEG          0x4A504547
+#endif
+#ifndef MAGIC_MAT
+#define MAGIC_MAT           0x204D4154
+#endif
+
 //! @}
 
 #endif

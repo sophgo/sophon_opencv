@@ -153,7 +153,17 @@ void read(const FileNode& node, Mat& m, const Mat& default_mat)
     size_t nelems = data_node.size();
     CV_Assert(nelems == m.total()*m.channels());
 
-    data_node.readRaw(dt, (uchar*)m.ptr(), m.total()*m.elemSize());
+    //data_node.readRaw(dt, (uchar*)m.ptr(), m.total()*m.elemSize());
+    if( m.dims <= 2 )
+    {
+        FileNodeIterator it = data_node.begin();
+        for( int i = 0; i < m.rows; i++ )
+            it.readRaw(dt, m.ptr(i), m.cols*m.elemSize());
+    }
+    else
+    {
+        data_node.readRaw(dt, (uchar*)m.ptr(), m.total()*m.elemSize());
+    }
 }
 
 void read( const FileNode& node, SparseMat& m, const SparseMat& default_mat )

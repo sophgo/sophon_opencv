@@ -436,6 +436,65 @@ static bool ipp_boxfilter(Mat &src, Mat &dst, Size ksize, Point anchor, bool nor
 }
 #endif
 
+void bmcpu_boxFilter(InputArray _src, OutputArray _dst, int ddepth,
+                     Size ksize, Point anchor,
+                     bool normalize, int borderType)
+{
+    CV_INSTRUMENT_REGION();
+#if !defined(USING_SOC) && defined(BM1684_CHIP) && defined(ENABLE_BMCPU)
+    int type = _src.type();
+    Size size = _src.size();
+    int cn = CV_MAT_CN(type);
+
+    Mat src = _src.getMat();
+    Mat dst = _dst.getMat();
+    int card = src.card;
+    int dst_flag = 0, src_flag = 0;
+
+    if (!src.u || !src.u->addr){
+        bmcv::attachDeviceMemory(src);
+        bmcv::uploadMat(src);
+        src_flag = 1;
+    }
+
+    if( ddepth < 0 )
+        ddepth = CV_MAT_DEPTH(type);
+    dst.create( size, CV_MAKETYPE(ddepth, cn), card );
+    if (!dst.u || !dst.u->addr){
+        bmcv::attachDeviceMemory(dst);
+        dst_flag = 1;
+    }
+
+    BMCpuSender sender(BM_CARD_ID(card), 16384);
+
+    /* start function */
+    CV_Assert(0 == sender.put(src));
+    CV_Assert(0 == sender.put(dst));
+    CV_Assert(0 == sender.put(ddepth));
+    CV_Assert(0 == sender.put(ksize));
+    CV_Assert(0 == sender.put(anchor));
+    CV_Assert(0 == sender.put(normalize));
+    CV_Assert(0 == sender.put(borderType));
+
+    CV_Assert(0 == sender.run("bmcpu_boxFilter"));
+
+    if (dst_flag){
+        bmcv::downloadMat(dst);
+        if (dst.u && CV_XADD(&dst.u->refcount, -1) == 1 )
+            dst.deallocate();
+    }
+    if (src_flag){
+        if (src.u && CV_XADD(&src.u->refcount, -1) == 1)
+            src.deallocate();
+    }
+
+    _dst.assign(dst);
+#else
+    boxFilter(_src, _dst, ddepth, ksize, anchor, normalize, borderType);
+#endif
+
+    return;
+}
 
 void boxFilter(InputArray _src, OutputArray _dst, int ddepth,
                Size ksize, Point anchor,

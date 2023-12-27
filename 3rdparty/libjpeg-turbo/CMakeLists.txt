@@ -96,6 +96,9 @@ endif()
 
 set(BITS_IN_JSAMPLE 8)
 
+set(WITH_SIMD 1)
+set(MEM_SRCDST_SUPPORTED 1)
+
 if(WITH_ARITH_ENC)
   set(C_ARITH_CODING_SUPPORTED 1)
 endif()

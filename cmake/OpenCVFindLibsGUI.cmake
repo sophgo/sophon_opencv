@@ -26,6 +26,23 @@ macro(ocv_find_package_Qt OCV_QT_VER)
   endif()
 endmacro()
 
+#If you want to compile so that opencv can call qt
+#1: Added -DWITH-QT option
+#2: Add With QT，Place the cross compiled qt package under middleware-soc
+#3: use vidbasic
+if(WITH_QT)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${OpenCV_SOURCE_DIR}/../qt/lib/cmake")
+    set(Qt5_ROOT ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5)
+    set(Qt5_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5)
+    set(Qt5Core_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Core)
+    set(Qt5Gui_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Gui)
+    set(Qt5Widgets_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Widgets)
+    set(Qt5Test_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Test)
+    set(Qt5Concurrent_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Concurrent)
+    include_directories(${OpenCV_SOURCE_DIR}/../qt/include)
+    link_directories(${OpenCV_SOURCE_DIR}/../qt/lib)
+endif()
+
 if(WITH_QT)
   if(NOT WITH_QT GREATER 0)
     # BUG: Qt5Config.cmake script can't handle components properly: find_package(QT NAMES Qt6 Qt5 REQUIRED NO_MODULE COMPONENTS Core Gui Widgets Test Concurrent)

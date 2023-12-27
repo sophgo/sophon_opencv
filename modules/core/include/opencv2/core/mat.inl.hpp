@@ -461,7 +461,8 @@ CV__DEBUG_NS_END
 template<typename _Tp> inline
 Mat::Mat(const std::vector<_Tp>& vec, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows((int)vec.size()),
-      cols(1), data(0), datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      cols(1), data(0), datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0),
+      card(0), fromhardware(0)
 {
     if(vec.empty())
         return;
@@ -498,7 +499,8 @@ Mat::Mat(const std::initializer_list<int> sizes, const std::initializer_list<_Tp
 template<typename _Tp, std::size_t _Nm> inline
 Mat::Mat(const std::array<_Tp, _Nm>& arr, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows((int)arr.size()),
-      cols(1), data(0), datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      cols(1), data(0), datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0),
+      card(0), fromhardware(0)
 {
     if(arr.empty())
         return;
@@ -515,7 +517,7 @@ Mat::Mat(const std::array<_Tp, _Nm>& arr, bool copyData)
 template<typename _Tp, int n> inline
 Mat::Mat(const Vec<_Tp, n>& vec, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows(n), cols(1), data(0),
-      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
     if( !copyData )
     {
@@ -531,7 +533,7 @@ Mat::Mat(const Vec<_Tp, n>& vec, bool copyData)
 template<typename _Tp, int m, int n> inline
 Mat::Mat(const Matx<_Tp,m,n>& M, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows(m), cols(n), data(0),
-      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
     if( !copyData )
     {
@@ -547,7 +549,7 @@ Mat::Mat(const Matx<_Tp,m,n>& M, bool copyData)
 template<typename _Tp> inline
 Mat::Mat(const Point_<_Tp>& pt, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows(2), cols(1), data(0),
-      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
     if( !copyData )
     {
@@ -566,7 +568,7 @@ Mat::Mat(const Point_<_Tp>& pt, bool copyData)
 template<typename _Tp> inline
 Mat::Mat(const Point3_<_Tp>& pt, bool copyData)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(2), rows(3), cols(1), data(0),
-      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0)
+      datastart(0), dataend(0), datalimit(0), allocator(0), u(0), size(&rows), step(0), card(0), fromhardware(0)
 {
     if( !copyData )
     {
@@ -586,7 +588,7 @@ Mat::Mat(const Point3_<_Tp>& pt, bool copyData)
 template<typename _Tp> inline
 Mat::Mat(const MatCommaInitializer_<_Tp>& commaInitializer)
     : flags(MAGIC_VAL + traits::Type<_Tp>::value + CV_MAT_CONT_FLAG), dims(0), rows(0), cols(0), data(0),
-      datastart(0), dataend(0), allocator(0), u(0), size(&rows)
+      datastart(0), dataend(0), allocator(0), u(0), size(&rows), card(0), fromhardware(0)
 {
     *this = commaInitializer.operator Mat_<_Tp>();
 }
@@ -625,6 +627,14 @@ inline
 Mat Mat::colRange(const Range& r) const
 {
     return Mat(*this, Range::all(), r);
+}
+
+inline
+Mat Mat::cloneAll() const
+{
+    Mat m;
+    copyAllTo(m);
+    return m;
 }
 
 inline

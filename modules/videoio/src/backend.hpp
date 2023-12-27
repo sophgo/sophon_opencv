@@ -17,9 +17,9 @@ class IBackend
 public:
     virtual ~IBackend() {}
     virtual Ptr<IVideoCapture> createCapture(int camera, const VideoCaptureParameters& params) const = 0;
-    virtual Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params) const = 0;
+    virtual Ptr<IVideoCapture> createCapture(const std::string &filename, const VideoCaptureParameters& params, int id = 0) const = 0;
     virtual Ptr<IVideoWriter> createWriter(const std::string& filename, int fourcc, double fps, const cv::Size& sz,
-                                           const VideoWriterParameters& params) const = 0;
+                                           const VideoWriterParameters& params, int id = 0, const std::string &encodeParams="") const = 0;
 };
 
 class IBackendFactory
@@ -32,12 +32,12 @@ public:
 
 //=============================================================================
 
-typedef Ptr<IVideoCapture> (*FN_createCaptureFile)(const std::string & filename);
+typedef Ptr<IVideoCapture> (*FN_createCaptureFile)(const std::string & filename, int id);
 typedef Ptr<IVideoCapture> (*FN_createCaptureCamera)(int camera);
-typedef Ptr<IVideoCapture> (*FN_createCaptureFileWithParams)(const std::string & filename, const VideoCaptureParameters& params);
+typedef Ptr<IVideoCapture> (*FN_createCaptureFileWithParams)(const std::string & filename, const VideoCaptureParameters& params, int id);
 typedef Ptr<IVideoCapture> (*FN_createCaptureCameraWithParams)(int camera, const VideoCaptureParameters& params);
 typedef Ptr<IVideoWriter>  (*FN_createWriter)(const std::string& filename, int fourcc, double fps, const Size& sz,
-                                              const VideoWriterParameters& params);
+                                              const VideoWriterParameters& params, int id, const std::string &encodeParams);
 Ptr<IBackendFactory> createBackendFactory(FN_createCaptureFile createCaptureFile,
                                           FN_createCaptureCamera createCaptureCamera,
                                           FN_createWriter createWriter);

@@ -67,6 +67,12 @@ UMatData::UMatData(const MatAllocator* allocator)
     userdata = 0;
     allocatorFlags_ = 0;
     originalUMatData = NULL;
+
+    hid = 0;
+    frame = 0;
+    addr = 0;
+    fd = -1;
+    memset(&mem, 0, sizeof(mem));
 }
 
 UMatData::~UMatData()

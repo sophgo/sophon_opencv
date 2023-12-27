@@ -108,7 +108,7 @@ set(tbb_version_file "version_string.ver")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${tbb_version_file}.cmakein" "${CMAKE_CURRENT_BINARY_DIR}/${tbb_version_file}" @ONLY)
 list(APPEND TBB_SOURCE_FILES "${CMAKE_CURRENT_BINARY_DIR}/${tbb_version_file}")
 
-add_library(tbb ${OPENCV_3RDPARTY_EXCLUDE_FROM_ALL} ${TBB_SOURCE_FILES})
+add_library(tbb STATIC ${OPENCV_3RDPARTY_EXCLUDE_FROM_ALL} ${TBB_SOURCE_FILES})
 target_compile_definitions(tbb PUBLIC
     TBB_USE_GCC_BUILTINS=1
     __TBB_GCC_BUILTIN_ATOMICS_PRESENT=1

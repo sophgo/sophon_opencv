@@ -18,14 +18,14 @@ class PluginCapture : public cv::IVideoCapture
 public:
     static
     Ptr<PluginCapture> create(const OpenCV_VideoIO_Plugin_API_preview* plugin_api,
-            const std::string &filename, int camera)
+            const std::string &filename, int camera, int id = 0)
     {
         CV_Assert(plugin_api);
         CvPluginCapture capture = NULL;
         if (plugin_api->v0.Capture_open)
         {
             CV_Assert(plugin_api->v0.Capture_release);
-            if (CV_ERROR_OK == plugin_api->v0.Capture_open(filename.empty() ? 0 : filename.c_str(), camera, &capture))
+            if (CV_ERROR_OK == plugin_api->v0.Capture_open(filename.empty() ? 0 : filename.c_str(), camera, &capture, id))
             {
                 CV_Assert(capture);
                 return makePtr<PluginCapture>(plugin_api, capture);
@@ -108,7 +108,7 @@ public:
     static
     Ptr<PluginWriter> create(const OpenCV_VideoIO_Plugin_API_preview* plugin_api,
             const std::string& filename, int fourcc, double fps, const cv::Size& sz,
-            const VideoWriterParameters& params)
+            const VideoWriterParameters& params, int id=0, const std::string &encodeParams="")
     {
         CV_Assert(plugin_api);
         CvPluginWriter writer = NULL;
@@ -120,7 +120,7 @@ public:
             int* c_params = &vint_params[0];
             unsigned n_params = (unsigned)(vint_params.size() / 2);
 
-            if (CV_ERROR_OK == plugin_api->v1.Writer_open_with_params(filename.c_str(), fourcc, fps, sz.width, sz.height, c_params, n_params, &writer))
+            if (CV_ERROR_OK == plugin_api->v1.Writer_open_with_params(filename.c_str(), fourcc, fps, sz.width, sz.height, c_params, n_params, &writer, id, encodeParams))
             {
                 CV_Assert(writer);
                 return makePtr<PluginWriter>(plugin_api, writer);
@@ -137,7 +137,7 @@ public:
                 CV_LOG_WARNING(NULL, "Video I/O plugin doesn't support (due to lower API level) creation of VideoWriter with depth != CV_8U");
                 return Ptr<PluginWriter>();
             }
-            if (CV_ERROR_OK == plugin_api->v0.Writer_open(filename.c_str(), fourcc, fps, sz.width, sz.height, isColor, &writer))
+            if (CV_ERROR_OK == plugin_api->v0.Writer_open(filename.c_str(), fourcc, fps, sz.width, sz.height, isColor, &writer, id, encodeParams.c_str()))
             {
                 CV_Assert(writer);
                 return makePtr<PluginWriter>(plugin_api, writer);

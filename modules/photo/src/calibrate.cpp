@@ -79,6 +79,7 @@ public:
         int CV_32FCC = CV_MAKETYPE(CV_32F, channels);
         int rows = images[0].rows;
         int cols = images[0].cols;
+        int step = images[0].step[0];
 
         dst.create(LDR_SIZE, 1, CV_32FCC);
         Mat result = dst.getMat();
@@ -125,7 +126,7 @@ public:
             for(size_t i = 0; i < points.size(); i++) {
                 for(size_t j = 0; j < images.size(); j++) {
                     // val = images[j].at<Vec3b>(points[i].y, points[i].x)[ch]
-                    int val = images[j].ptr()[channels*(points[i].y * cols + points[i].x) + ch];
+                    int val = images[j].ptr()[points[i].y * step + channels * points[i].x + ch];
                     float wij = w.at<float>(val);
                     A.at<float>(k, val) = wij;
                     A.at<float>(k, LDR_SIZE + (int)i) = -wij;
@@ -232,10 +233,12 @@ public:
 
         Mat card = Mat::zeros(LDR_SIZE, 1, CV_32FCC);
         for(size_t i = 0; i < images.size(); i++) {
-           uchar *ptr = images[i].ptr();
-           for(size_t pos = 0; pos < images[i].total(); pos++) {
-               for(int c = 0; c < channels; c++, ptr++) {
-                   card.at<Vec3f>(*ptr)[c] += 1;
+           for (size_t row = 0; row < images[i].rows; row++){
+               uchar *ptr = images[i].ptr(row);
+               for(size_t pos = 0; pos < images[i].cols; pos++) {
+                   for(int c = 0; c < channels; c++, ptr++) {
+                       card.at<Vec3f>(*ptr)[c] += 1;
+                   }
                }
            }
         }
@@ -249,11 +252,13 @@ public:
 
             Mat new_response = Mat::zeros(LDR_SIZE, 1, CV_32FC3);
             for(size_t i = 0; i < images.size(); i++) {
-                uchar *ptr = images[i].ptr();
-                float* rad_ptr = radiance.ptr<float>();
-                for(size_t pos = 0; pos < images[i].total(); pos++) {
-                    for(int c = 0; c < channels; c++, ptr++, rad_ptr++) {
-                        new_response.at<Vec3f>(*ptr)[c] += times.at<float>((int)i) * *rad_ptr;
+                for (size_t row = 0; row < images[i].rows; row++){
+                    uchar *ptr = images[i].ptr(row);
+                    float* rad_ptr = radiance.ptr<float>(row);
+                    for(size_t pos = 0; pos < images[i].cols; pos++) {
+                        for(int c = 0; c < channels; c++, ptr++, rad_ptr++) {
+                            new_response.at<Vec3f>(*ptr)[c] += times.at<float>((int)i) * *rad_ptr;
+                        }
                     }
                 }
             }

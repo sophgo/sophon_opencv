@@ -79,7 +79,10 @@ enum ImreadModes {
        IMREAD_REDUCED_COLOR_4      = 33, //!< If set, always convert image to the 3 channel BGR color image and the image size reduced 1/4.
        IMREAD_REDUCED_GRAYSCALE_8  = 64, //!< If set, always convert image to the single channel grayscale image and the image size reduced 1/8.
        IMREAD_REDUCED_COLOR_8      = 65, //!< If set, always convert image to the 3 channel BGR color image and the image size reduced 1/8.
-       IMREAD_IGNORE_ORIENTATION   = 128 //!< If set, do not rotate the image according to EXIF's orientation flag.
+       IMREAD_IGNORE_ORIENTATION   = 128,//!< If set, do not rotate the image according to EXIF's orientation flag.
+       IMREAD_UNCHANGED_SCALE      = 256, //! <if set, for color output,we will not do scale.
+       IMREAD_AVFRAME              = 512, //! <if set, return AVFrame format data .
+       IMREAD_RETRY_SOFTDEC        = 1024 //! <if set, when hw dec failed, try again with software.
      };
 
 //! Imwrite flags
@@ -224,8 +227,9 @@ Currently, the following file formats are supported:
 
 @param filename Name of file to be loaded.
 @param flags Flag that can take values of cv::ImreadModes
+@param id  SOPHON device index in pcie mode, default is 0. it is ignored in soc mode
 */
-CV_EXPORTS_W Mat imread( const String& filename, int flags = IMREAD_COLOR );
+CV_EXPORTS_W Mat imread( const String& filename, int flags = IMREAD_COLOR, int id = 0);
 
 /** @brief Loads a multi-page image from a file.
 
@@ -233,9 +237,10 @@ The function imreadmulti loads a multi-page image from the specified file into a
 @param filename Name of file to be loaded.
 @param mats A vector of Mat objects holding each page.
 @param flags Flag that can take values of cv::ImreadModes, default with cv::IMREAD_ANYCOLOR.
+@param id  SOPHON device index in pcie mode, default is 0. it is ignored in soc mode
 @sa cv::imread
 */
-CV_EXPORTS_W bool imreadmulti(const String& filename, CV_OUT std::vector<Mat>& mats, int flags = IMREAD_ANYCOLOR);
+CV_EXPORTS_W bool imreadmulti(const String& filename, CV_OUT std::vector<Mat>& mats, int flags = IMREAD_ANYCOLOR, String id = "0");
 
 /** @brief Loads a of images of a multi-page image from a file.
 
@@ -247,7 +252,7 @@ The function imreadmulti loads a specified range from a multi-page image from th
 @param flags Flag that can take values of cv::ImreadModes, default with cv::IMREAD_ANYCOLOR.
 @sa cv::imread
 */
-CV_EXPORTS_W bool imreadmulti(const String& filename, CV_OUT std::vector<Mat>& mats, int start, int count, int flags = IMREAD_ANYCOLOR);
+CV_EXPORTS_W bool imreadmulti(const String& filename, CV_OUT std::vector<Mat>& mats, int start, int count, int flags = IMREAD_ANYCOLOR, String id = "0");
 
 /** @brief Returns the number of images inside the give file
 
@@ -315,16 +320,18 @@ See cv::imread for the list of supported formats and flags description.
 @note In the case of color images, the decoded images will have the channels stored in **B G R** order.
 @param buf Input array or vector of bytes.
 @param flags The same flags as in cv::imread, see cv::ImreadModes.
+@param id  SOPHON device index in pcie mode, default is 0. it is ignored in soc mode
 */
-CV_EXPORTS_W Mat imdecode( InputArray buf, int flags );
+CV_EXPORTS_W Mat imdecode( InputArray buf, int flags, int id = 0);
 
 /** @overload
 @param buf
 @param flags
 @param dst The optional output placeholder for the decoded matrix. It can save the image
+@param id  SOPHON device index in pcie mode, default is 0. it is ignored in soc mode
 reallocations when the function is called repeatedly for images of the same size.
 */
-CV_EXPORTS Mat imdecode( InputArray buf, int flags, Mat* dst);
+CV_EXPORTS Mat imdecode( InputArray buf, int flags, Mat* dst, int id = 0);
 
 /** @brief Reads a multi-page image from a buffer in memory.
 

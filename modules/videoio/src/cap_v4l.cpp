@@ -223,6 +223,7 @@ make & enjoy!
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <limits>
+#include "libyuv.h"
 
 #include <poll.h>
 
@@ -362,8 +363,10 @@ struct CvCaptureCAM_V4L CV_FINAL : public CvCapture
     String deviceName;
 
     IplImage frame;
+    Mat jpgDecompressFrame;
 
     __u32 palette;
+    __u32 user_palette;
     int width, height;
     int width_set, height_set;
     int bufferSize;
@@ -394,6 +397,8 @@ struct CvCaptureCAM_V4L CV_FINAL : public CvCapture
 
     timeval timestamp;
 
+    double out_yuv;
+    int card;
     bool open(int _index);
     bool open(const char* deviceName);
     bool isOpened() const;
@@ -404,6 +409,7 @@ struct CvCaptureCAM_V4L CV_FINAL : public CvCapture
     virtual bool setProperty(int, double) CV_OVERRIDE;
     virtual bool grabFrame() CV_OVERRIDE;
     virtual IplImage* retrieveFrame(int) CV_OVERRIDE;
+    virtual bool retrieveArray(cv::OutputArray image) CV_OVERRIDE;
 
     CvCaptureCAM_V4L();
     virtual ~CvCaptureCAM_V4L();
@@ -466,6 +472,7 @@ CvCaptureCAM_V4L::~CvCaptureCAM_V4L()
         if (deviceHandle != -1)
             close(deviceHandle);
     }
+    this->jpgDecompressFrame.release();
 }
 
 void CvCaptureCAM_V4L::closeDevice()
@@ -828,8 +835,32 @@ bool CvCaptureCAM_V4L::initCapture()
     // reinitialize buffers
     FirstCapture = true;
 
+    out_yuv = PROP_FALSE;
+    card = 0;
     return true;
 };
+
+#ifdef HAVE_JPEG
+
+/* convert from mjpeg to rgb24 */
+static bool
+mjpeg_to_rgb24(int width, int height, unsigned char* src, int length, IplImage* dst) {
+    Mat temp = cvarrToMat(dst);
+    imdecode(Mat(1, length, CV_8U, src), IMREAD_COLOR, &temp);
+    return temp.data && temp.cols == width && temp.rows == height;
+}
+
+static bool
+mjpeg_to_rgb24(int width, int height, unsigned char* src, int length, double out_yuv, Mat* dst) {
+       
+    if (out_yuv > PROP_FALSE) {
+        imdecode(Mat(1, length, CV_8U, src), IMREAD_AVFRAME, dst);
+    } else {
+        imdecode(Mat(1, length, CV_8U, src), IMREAD_COLOR, dst);
+    }
+    return dst->data && dst->cols == width && dst->rows == height;
+}
+#endif
 
 bool CvCaptureCAM_V4L::requestBuffers()
 {
@@ -975,6 +1006,7 @@ bool CvCaptureCAM_V4L::open(int _index)
     {
         name = cv::format("/dev/video%d", _index);
     }
+    card = _index;
 
     bool res = open(name.c_str());
     if (!res)
@@ -2069,6 +2101,8 @@ double CvCaptureCAM_V4L::getProperty(int property_id) const
         return 1000 * timestamp.tv_sec + ((double)timestamp.tv_usec) / 1000;
     case cv::CAP_PROP_CHANNEL:
         return channelNumber;
+    case cv::CAP_PROP_OUTPUT_YUV:
+        return out_yuv;
     default:
     {
         cv::Range range;
@@ -2132,10 +2166,12 @@ bool CvCaptureCAM_V4L::setProperty( int property_id, double _value )
 
         __u32 old_palette = palette;
         palette = static_cast<__u32>(value);
+        user_palette = palette;
         if (v4l2_reset())
             return true;
 
         palette = old_palette;
+        user_palette = palette;
         v4l2_reset();
         return false;
     }
@@ -2170,6 +2206,9 @@ bool CvCaptureCAM_V4L::setProperty( int property_id, double _value )
         v4l2_reset();
         return false;
     }
+    case cv::CAP_PROP_OUTPUT_YUV:
+        out_yuv = value;
+        return true;
     default:
     {
         cv::Range range;
@@ -2256,6 +2295,155 @@ bool CvCaptureCAM_V4L::streaming(bool startStream)
     return startStream;
 }
 
+static bool icvRetrieveArrayCAM_V4L(CvCaptureCAM_V4L* capture, cv::OutputArray image)
+{
+#ifdef HAVE_JPEG
+    if (capture->palette == V4L2_PIX_FMT_MJPEG || 
+        capture->palette == V4L2_PIX_FMT_JPEG )
+    {
+        if (!capture->convert_rgb ){
+            capture->jpgDecompressFrame = Mat(1, capture->buffers[capture->bufferIndex].memories[capture->bufferIndex].length, 
+                                              IPL_DEPTH_8U, capture->buffers[capture->bufferIndex].memories[capture->bufferIndex].start,
+                                              0);
+        }
+        else if (!mjpeg_to_rgb24(capture->form.fmt.pix.width,
+                    capture->form.fmt.pix.height,
+                    (unsigned char*)(capture->buffers[capture->bufferIndex].memories[capture->bufferIndex].start),
+                    capture->buffers[capture->bufferIndex].memories[capture->bufferIndex].length,
+                    capture->out_yuv,
+                    &capture->jpgDecompressFrame)) {
+            capture->jpgDecompressFrame.release();
+        }
+
+        if (!capture->returnFrame)
+            capture->jpgDecompressFrame.release();
+
+        image.assign(capture->jpgDecompressFrame);
+        return true;    
+    }
+#endif
+
+    if (capture->out_yuv == PROP_FALSE) return false;
+
+    //Copy yuv data to user 
+    switch (capture->user_palette) {
+        case V4L2_PIX_FMT_NV12:
+            capture->palette = AV_PIX_FMT_NV12;
+            break;
+        case V4L2_PIX_FMT_YUYV:
+            capture->palette = AV_PIX_FMT_YUV422P;
+            break;
+        case V4L2_PIX_FMT_UYVY:
+            capture->palette = AV_PIX_FMT_YUV422P;
+            break;
+        case V4L2_PIX_FMT_YUV422P:
+            capture->palette = AV_PIX_FMT_YUV422P;
+            //Currentlly, only these four types are supported
+            break;
+        default:
+            printf("Jet...........dont support....2....\n");
+            return false;
+    }
+
+    cv::Mat &myimage =  image.getMatRef();
+    AVFrame *f = cv::av::create(capture->form.fmt.pix.height, capture->form.fmt.pix.width, 
+                            capture->palette, NULL, 0, -1, NULL, NULL);
+    myimage.create(f, capture->card);
+    const uchar *sptr = (uchar *)capture->buffers[capture->bufferIndex].memories[capture->bufferIndex].start;
+    int w = capture->form.fmt.pix.width;
+    int h = capture->form.fmt.pix.height;
+    int planeNumber, wscale[3], hscale[3];
+    planeNumber = cv::av::get_scale_and_plane(capture->palette, wscale, hscale);
+    int ylen = w * h / (wscale[0] * hscale[0]);
+    int ulen = w * h / (wscale[1] * hscale[1]);
+    const char *p[3] = {reinterpret_cast<const char*>(myimage.avAddr(0)),\
+                                    reinterpret_cast<const char*>(myimage.avAddr(1)),\
+                                    reinterpret_cast<const char*>(myimage.avAddr(2))};
+
+    switch (capture->user_palette) {
+    case V4L2_PIX_FMT_YUYV:
+    {
+        int j = 0;
+        int s = 0;
+        for (int i = 0; i < w * h * 2;) {
+            *((uchar *)p[0] + s)     = *(sptr + i);
+            *((uchar *)p[0] + s + 1) = *(sptr + i + 2);
+            *((uchar *)p[1] + j)     = *(sptr + i + 1);
+            *((uchar *)p[2] + j)     = *(sptr + i + 3);
+
+            i = i + 4;
+            j = j + 1;
+            s = s + 2;
+        }
+        break;
+    }
+    case V4L2_PIX_FMT_UYVY:
+    {
+        int j = 0;
+        int s = 0;
+        for (int i = 0; i < w * h * 2;) {
+            *((uchar *)p[0] + s)     = *(sptr + i + 1);
+            *((uchar *)p[0] + s + 1) = *(sptr + i + 3);
+            *((uchar *)p[1] + j)     = *(sptr + i);
+            *((uchar *)p[2] + j)     = *(sptr + i + 2);
+
+            i = i + 4;
+            j = j + 1;
+            s = s + 2;
+        }
+        break;
+    }
+    case V4L2_PIX_FMT_NV12:
+    case V4L2_PIX_FMT_YUV422P:
+    {
+        capture->palette = AV_PIX_FMT_YUV422P;
+        switch (planeNumber) {
+        case 3: //copy plane 2
+            libyuv::CopyPlane(sptr + ylen + ulen,
+                              myimage.avStep(2),
+                              (uchar *)p[2],
+                              myimage.avStep(2),
+                              w / wscale[2],
+                              h / hscale[2]);
+        case 2: //Copy plane 1
+            libyuv::CopyPlane(sptr + ylen,
+                              myimage.avStep(1),
+                              (uchar *)p[1],
+                              myimage.avStep(1),
+                              w / wscale[1],
+                              h / hscale[1]);
+        case 1: //Copy plane 0
+            libyuv::CopyPlane(sptr,
+                              myimage.avStep(0),
+                              (uchar *)p[0],
+                              myimage.avStep(0),
+                              w / wscale[0],
+                              h / hscale[0]);
+            break;
+        default:
+            return false;
+        }
+    }
+    }
+
+    if (!myimage.avOK()) {
+#ifdef HAVE_BMCV
+        cv::bmcv::uploadMat(myimage);
+#endif
+    }
+
+    if (!capture->returnFrame) {
+        myimage.release();
+    }
+
+    return true;
+}
+
+bool CvCaptureCAM_V4L::retrieveArray(cv::OutputArray image)
+{
+    return icvRetrieveArrayCAM_V4L(this, image);
+}
+
 IplImage *CvCaptureCAM_V4L::retrieveFrame(int)
 {
     havePendingFrame = false;  // unlock .grab()
@@ -2315,7 +2503,7 @@ Ptr<IVideoCapture> create_V4L_capture_cam(int index)
     return NULL;
 }
 
-Ptr<IVideoCapture> create_V4L_capture_file(const std::string &filename)
+Ptr<IVideoCapture> create_V4L_capture_file(const std::string &filename, int id)
 {
     cv::CvCaptureCAM_V4L* capture = new cv::CvCaptureCAM_V4L();
 
