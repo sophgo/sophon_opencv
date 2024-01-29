@@ -77,7 +77,7 @@ enum ImreadModes {
        IMREAD_IGNORE_ORIENTATION   = 128, //!< If set, do not rotate the image according to EXIF's orientation flag.
        IMREAD_UNCHANGED_SCALE      = 256, //! <if set, for color output,we will not do scale.
        IMREAD_AVFRAME              = 512, //! <if set, return AVFrame format data .
-       IMREAD_RETRY_SOFTDEC        = 1024 //! <if set, hw dec fialed retry sofware.
+       IMREAD_RETRY_SOFTDEC        = 1024 //! <if set, when hw dec failed, try again with software.
      };
 
 //! Imwrite flags

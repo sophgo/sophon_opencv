@@ -13,9 +13,7 @@ FATAL: In-source builds are not allowed.
        You should create a separate directory for build files.
 ")
 endif()
-message(STATUS "${CMAKE_CURRENT_SOURCE_DIR}")
-message(STATUS "${CMAKE_HWACCEL_PATH}")
-message(STATUS "------------------------------------------------------------------")
+
 include(cmake/OpenCVMinDepVersions.cmake)
 
 option(CHIP "Target chip name" bm1682)
@@ -48,7 +46,6 @@ endif()
 
 option(ENABLE_PIC "Generate position independent code (necessary for shared libraries)" TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ${ENABLE_PIC})
-set(BM_HWACCEL_DIR ${CMAKE_HWACCEL_PATH})
 
 # Following block can break build in case of cross-compiling
 # but CMAKE_CROSSCOMPILING variable will be set only on project(OpenCV) command

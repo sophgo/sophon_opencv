@@ -592,7 +592,7 @@ int main(int argc, char* argv[])
                 freetype_params_parse(temp_typeing, text, foutpath, posX, posY, fontHeight, R, G, B, thickness, linestyle);
                 if (bmcpu_enable == 1) {
                     freetype::BmcpuFreeType2Impl *ft2 = new freetype::BmcpuFreeType2Impl();
-                    ft2->setCardId(0);
+                    ft2->setCardId(device_id);
                     ft2->loadFontData(foutpath, 0 );
                     //设置坐标动态变化
                     if(dynamic == 1){

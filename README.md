@@ -49,6 +49,7 @@ Compilation steps:
  1、Create folder: mkdir build;cd build
  2、Create a shell script and copy the following to the shell script
 
+###
 #!/bin/bash
 PWD=$(pwd)
 
@@ -98,6 +99,8 @@ if [ $PRODUCTFORM != soc ]; then
           -DWITH_TIFF=ON -DBUILD_TIFF=ON \
           -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
           -DOPENCV_FORCE_3RDPARTY_BUILD=ON \
+          -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
+          -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
           -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/pcie/libturbojpeg.a \
           -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
           -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/x86_64/lib/libfreetype.a \
@@ -140,6 +143,8 @@ else
           -DWITH_TBB=ON -DBUILD_TBB=ON \
           -DWITH_TIFF=ON -DBUILD_TIFF=ON \
           -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
+          -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
+          -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
           -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/soc/libturbojpeg.a \
           -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
           -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/lib/libfreetype.a \
@@ -159,17 +164,19 @@ else
           -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..
 fi
 
+ 3、Make and install to OPENCV_INSTALL_PATH
+
 ## License
 
 This project is licensed under the Apache License Version 2.0. Please refere to the LICNESE file for detailed information. 
 
 ## Authorts
 
-	- xun.li  
-	- tao.han
+    - xun.li  
+    - tao.han
     - xin.guo
-	- yujing.shen
-	- yuyuan.yang
+    - yujing.shen
+    - yuyuan.yang
     - haotian.luo
     - mingxi.shen
     - yu.yang

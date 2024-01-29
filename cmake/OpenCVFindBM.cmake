@@ -4,9 +4,11 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     if (NOT DEFINED FFMPEG_INCLUDE_DIRS)
         set(FFMPEG_INCLUDE_DIRS
             "${OpenCV_SOURCE_DIR}/3rdparty/libbmcv/include"
-            "${OpenCV_SOURCE_DIR}/out/ffmpeg/usr/local/include"
-            "${OpenCV_SOURCE_DIR}/out/decode/include"
-            "${OpenCV_SOURCE_DIR}/out/vpp/include"
+            "${OpenCV_SOURCE_DIR}/../ffmpeg_install/include"
+            "${OpenCV_SOURCE_DIR}/../bmvid/jpeg/driver/bmjpuapi/inc"
+            "${OpenCV_SOURCE_DIR}/../bmvid/3rdparty/libyuv/include"
+            "${OpenCV_SOURCE_DIR}/../bmvid/vpp/driver/include/bm1684"
+            "${OpenCV_SOURCE_DIR}/../bmvid/bmcv/include"
         )
     else()
         string(REPLACE " " ";" FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS})
@@ -14,25 +16,33 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     if (NOT DEFINED FFMPEG_LIBRARY_DIRS)
         set(FFMPEG_LIBRARY_DIRS
             "${OpenCV_SOURCE_DIR}/3rdparty/libbmcv/lib/${PRODUCTFORM}"
-            "${OpenCV_SOURCE_DIR}/out/ffmpeg/usr/local/lib"
-            "${OpenCV_SOURCE_DIR}/out/decode/lib"
+            "${OpenCV_SOURCE_DIR}/../ffmpeg_install/lib"
+            "${OpenCV_SOURCE_DIR}/../ffmpeg_install/bin"
+            "${OpenCV_SOURCE_DIR}/../bmvid/release/lib"
+            "${OpenCV_SOURCE_DIR}/../prebuilt/windows/lib"
         )
     else()
         string(REPLACE " " ";" FFMPEG_LIBRARY_DIRS ${FFMPEG_LIBRARY_DIRS})
     endif()
     LINK_DIRECTORIES(${FFMPEG_LIBRARY_DIRS})
 else() #"Linux"
-
     if (NOT DEFINED FFMPEG_INCLUDE_DIRS)
         set(FFMPEG_INCLUDE_DIRS
-            "${BM_HWACCEL_DIR}/include"
+            "${OpenCV_SOURCE_DIR}/3rdparty/libbmcv/include"
+            "${CMAKE_INSTALL_PREFIX}/../ffmpeg/usr/local/include"
+            "${CMAKE_INSTALL_PREFIX}/../decode/include"
+            "${CMAKE_INSTALL_PREFIX}/../vpp/include"
+            "${CMAKE_INSTALL_PREFIX}/../bmcv/include"
         )
     else()
         string(REPLACE " " ";" FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS})
     endif()
     if (NOT DEFINED FFMPEG_LIBRARY_DIRS)
         set(FFMPEG_LIBRARY_DIRS
-            "${BM_HWACCEL_DIR}/lib"
+            "${OpenCV_SOURCE_DIR}/3rdparty/libbmcv/lib/${PRODUCTFORM}"
+            "${CMAKE_INSTALL_PREFIX}/../ffmpeg/usr/local/lib"
+            "${CMAKE_INSTALL_PREFIX}/../decode/lib"
+            "${CMAKE_INSTALL_PREFIX}/../bmcv/lib"
         )
     else()
         string(REPLACE " " ";" FFMPEG_LIBRARY_DIRS ${FFMPEG_LIBRARY_DIRS})
@@ -50,11 +60,13 @@ if(${CHIP} STREQUAL "bm1684")
   ${CMAKE_IMPORT_LIBRARY_PREFIX}bmvpulite
   ${CMAKE_IMPORT_LIBRARY_PREFIX}bmvpuapi
   ${CMAKE_IMPORT_LIBRARY_PREFIX}bmvideo
+  ${CMAKE_IMPORT_LIBRARY_PREFIX}vpp_cmodel
   ${CMAKE_IMPORT_LIBRARY_PREFIX}yuv)
 
   list(APPEND FFMPEG_LIBRARIES
   ${CMAKE_IMPORT_LIBRARY_PREFIX}bmion
-  ${CMAKE_IMPORT_LIBRARY_PREFIX}bmvppapi)
+  #${CMAKE_IMPORT_LIBRARY_PREFIX}bmvppapi
+  )
 endif()
 
 if(${PRODUCTFORM} STREQUAL "soc")
@@ -62,7 +74,6 @@ if(${PRODUCTFORM} STREQUAL "soc")
   #set(HAVE_LIBYUV ON)
   add_definitions(-DUSING_SOC)
   add_definitions(-DHAVE_LIBYUV)
-  message(STATUS ${CMAKE_TOOLCHAIN_FILE})
 endif()
 
 if(${CHIP} STREQUAL "bm1684")
