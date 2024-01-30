@@ -47,6 +47,7 @@
 #include "bitstrm.hpp"
 #include "bmjpuapi_jpeg.h"
 
+
 #ifndef USING_SOC
 #define MAX_RESOLUTION_W    (4096)
 #define MAX_RESOLUTION_H    (4096)
@@ -99,7 +100,7 @@ public:
     ImageEncoder newEncoder() const CV_OVERRIDE;
 private:
     bool prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& img);
-    bool prepareDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& in_img, Mat& out_img, BmJpuWrappedDMABuffer& wrapped_dma_buffer);
+    bool prepareDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& in_img, Mat& out_img, bm_device_mem_t &wrapped_mem);
     int fillFrameBuffer(Mat& img, BmJpuFramebuffer& framebuffer);
     bool prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs_buffer_size, bool is_yuv_mat, const Mat& img, const std::vector<int>& params, void* file);
 protected:

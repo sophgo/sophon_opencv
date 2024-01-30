@@ -52,7 +52,8 @@
 #include <iostream>
 #include <fstream>
 #include <opencv2/core/utils/configuration.private.hpp>
-
+#include "bmlib_runtime.h"
+#define CHIP_ID_1684 0x1684
 
 /****************************************************************************************\
 *                                      Image Codecs                                      *
@@ -422,6 +423,27 @@ static void FlushSoftMatMemory(Mat& mat)
     return;
 }
 
+static int get_bm_chip_id(int card)
+{
+#ifdef HAVE_BMCV
+    unsigned int chipid;
+    bm_handle_t handle;
+
+    int ret = bm_dev_request(&handle, card);
+    if (ret != BM_SUCCESS) {
+        printf("Create bm handle failed. ret = %d\n", ret);
+        return -1;
+    }
+    bm_get_chipid(handle, &chipid);
+    if(handle != NULL){
+        bm_dev_free(handle);
+    }
+    return chipid;
+#else
+  return 0;
+#endif
+}
+
 /**
  * Read an image into memory and return the information
  *
@@ -497,10 +519,15 @@ imread_( const String& filename, int flags, Mat& mat, int id)
     {
         if(size.width > MAX_RESOLUTION_W || size.height > MAX_RESOLUTION_H)
         {
-            mat.rows = size.height;
-            mat.cols = size.width;
-            std::cerr << "imread_('" << filename << "'): resolution is bigger than 4K, unchange mode do not output decoded contents!!" << std::endl << std::flush;
-            return 0;
+            if(CHIP_ID_1684 == get_bm_chip_id(id) ||
+              (size.width > MAX_RESOLUTION_W * 2) ||
+              (size.height > MAX_RESOLUTION_H * 2))
+            {
+                mat.rows = size.height;
+                mat.cols = size.width;
+                std::cerr << "imread_('" << filename << "'): resolution is bigger than 4K/(8K in bm1684x), unchange mode do not output decoded contents!!" << std::endl << std::flush;
+                return 0;
+            }
         }
     }
 
@@ -867,10 +894,15 @@ imdecode_( const Mat& buf, int flags, Mat& mat, int id)
     {
         if(size.width > MAX_RESOLUTION_W || size.height > MAX_RESOLUTION_H)
         {
-            mat.rows = size.height;
-            mat.cols = size.width;
-            std::cerr << "imdecode_('" << filename << "'): resolution is bigger than 4K, unchange mode do not output decoded contents!!" << std::endl << std::flush;
-            return 0;
+            if(CHIP_ID_1684 == get_bm_chip_id(id) ||
+              (size.width > MAX_RESOLUTION_W * 2) ||
+              (size.height > MAX_RESOLUTION_H * 2))
+            {
+                mat.rows = size.height;
+                mat.cols = size.width;
+                std::cerr << "imread_('" << filename << "'): resolution is bigger than 4K/(8K in bm1684x), unchange mode do not output decoded contents!!" << std::endl << std::flush;
+                return 0;
+            }
         }
     }
 

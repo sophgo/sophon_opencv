@@ -50,6 +50,7 @@ public:
 #if BMCPU_PROFILING
             int64_t start = getTickCount();
 #endif
+#if 0
             /* get filename */
             if (0 > getLocationPath(library_path, sizeof(library_path))) {
                 BMCPU_LOG(stdout, "can not find bmcpu path\n");
@@ -87,6 +88,7 @@ public:
                 BMCPU_LOG(stdout, "itb_paht(%s) is not exit!\n", itb_path);
                 return;
             }
+#endif
 
             for (i = 0; i < dev_num; i++)
                 threads[i] = thread(load_fn, i);

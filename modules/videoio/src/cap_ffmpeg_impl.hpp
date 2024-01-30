@@ -78,7 +78,7 @@ extern "C" {
 #endif
 
 #include <libswscale/swscale.h>
-
+#include "bmlib_runtime.h"
 #ifdef __cplusplus
 }
 #endif
@@ -191,6 +191,7 @@ extern "C" {
 
 #define DMA_LIST_MAX_NUMS 8
 #define HEAP2_MASK 0x4
+#define MALLOC_HEAP_ID 0x6
 
 #if USE_AV_INTERRUPT_CALLBACK
 #define LIBAVFORMAT_INTERRUPT_OPEN_TIMEOUT_MS 30000
@@ -390,7 +391,7 @@ private:
 
 static inline void _opencv_ffmpeg_av_packet_unref(AVPacket *pkt);
 /* BM codec callback function and definitions */
-#define MAX_VIDEO_CHL_NUM   512
+#define MAX_VIDEO_CHL_NUM   1024
 
 struct _Debug_Param{
     int         debug_level;
@@ -1879,6 +1880,12 @@ bool CvCapture_FFMPEG::retrieveFrame(int, cv::OutputArray image)
         !is_bm_image_codec(video_st->codec->codec_id))
         return retrieveFrameSoft(0, image);
 
+    if ((out_yuv > 0) && ((picture->data == NULL) || (picture->data[4] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+        return false;
+    } else if ((out_yuv == 0) && ((picture->data == NULL) || (picture->data[0] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+        return false;
+    }
+
     if (frame.height != picture->height) frame.height = picture->height;
     if (frame.width != picture->width) frame.width = picture->width;
 
@@ -2435,7 +2442,7 @@ struct CvVideoWriter_FFMPEG
     bool writeFrame( const unsigned char* data, int step, int width, int height, int cn, int origin, char *data_out=NULL, int *len=NULL,  void *roiinfo=NULL );
     bool writeFrame( cv::InputArray image, char *data=NULL, int *len=NULL, void *roiinfo = NULL);
 
-    void init();
+    void init(bool is_first_init);
     bool AddRoiInfo(AVFrame * picture,  void *roiinfo);
 #ifdef HAVE_BMCV
     AVFrame* getIdleAvFrame(AVFrame *f_in);
@@ -2452,7 +2459,7 @@ struct CvVideoWriter_FFMPEG
     AVFrame         * picture;
     AVFrame         * input_picture;
     AVFrame         * dma_picture[DMA_LIST_MAX_NUMS];
-    bm_ion_context  * dma_picture_context[DMA_LIST_MAX_NUMS*3];
+    bm_device_mem_t   mem_info[DMA_LIST_MAX_NUMS*3];
 
     uint8_t         * picbuf;
     AVStream        * video_st;
@@ -2480,6 +2487,7 @@ struct CvVideoWriter_FFMPEG
     int               roi_enable;
     char              encode_params[1024];
     char              m_encodeparms[1024];
+    unsigned int      total_heap_num;
 };
 
 static const char * icvFFMPEGErrStr(int err)
@@ -2540,7 +2548,7 @@ extern "C" {
     enum CV_CODEC_ID codec_get_bmp_id(unsigned int tag);
 }
 
-void CvVideoWriter_FFMPEG::init()
+void CvVideoWriter_FFMPEG::init(bool is_first_init)
 {
     fmt = 0;
     oc = 0;
@@ -2559,7 +2567,10 @@ void CvVideoWriter_FFMPEG::init()
     frame_idx = 0;
     ok = false;
     output_flags = false;
-    //is_dma_buffer = 0; 不能初始化
+    if (is_first_init) {
+        is_dma_buffer = 0;
+        is_fmt_nv12 = 0;
+    }
 
     for(int i=0;i<DMA_LIST_MAX_NUMS;i++)
         dma_picture[i] = NULL;
@@ -3186,15 +3197,19 @@ bool CvVideoWriter_FFMPEG::convertAndEncode( cv::Mat m_in, char *data, int *len,
 
 void CvVideoWriter_FFMPEG::releaseAvFrame()
 {
+    bm_handle_t mem_handle = cv::bmcv::getCard(card_idx);
     for(int i=0;i<DMA_LIST_MAX_NUMS;i++){
         if(dma_picture[i] == NULL){
             continue;
         }
-        av_ion_free((void*)dma_picture_context[3*i]);
-        av_ion_free((void*)dma_picture_context[3*i+1]);
-        if(dma_picture[i]->format == AV_PIX_FMT_YUV420P) {
-            av_ion_free((void*)dma_picture_context[3*i+2]);
+
+
+        bm_free_device(mem_handle, mem_info[3*i]);
+        bm_free_device(mem_handle, mem_info[3*i+1]);
+        if(dma_picture[i]->format == AV_PIX_FMT_YUV420P){
+            bm_free_device(mem_handle, mem_info[3*i+2]);
         }
+
         av_frame_unref(dma_picture[i]);
         av_frame_free(&dma_picture[i]);
     }
@@ -3203,10 +3218,23 @@ void CvVideoWriter_FFMPEG::releaseAvFrame()
 
 AVFrame* CvVideoWriter_FFMPEG::getIdleAvFrame(AVFrame *f_in)
 {
+    int ret = 0;
+    int heap_id = -1;
     if(f_in == NULL){
         return NULL;
     }
 
+    for (int i=total_heap_num-1; i>=0; i--) {
+        if (MALLOC_HEAP_ID & (0x1<<i)) {
+            heap_id = i;
+            break;
+        }
+        if (i == 0) {
+            CV_Error(CV_StsError, "can not find heap_id!");
+            return NULL;
+        }
+    }
+    bm_handle_t mem_handle = cv::bmcv::getCard(card_idx);
     for(int i =0;i< DMA_LIST_MAX_NUMS;i++){
         if(dma_picture[i] == NULL){
             dma_picture[i] = av_frame_alloc();
@@ -3220,18 +3248,32 @@ AVFrame* CvVideoWriter_FFMPEG::getIdleAvFrame(AVFrame *f_in)
 
             dma_picture[i]->buf[0] = av_buffer_create(NULL,0,NULL,NULL,AV_BUFFER_FLAG_READONLY);
 
-            dma_picture_context[3*i] = (bm_ion_context*)av_ion_malloc(
-                                        f_in->linesize[4]*f_in->height, 2, BM_CARD_ID(card_idx));
-            dma_picture[i]->data[4] = (uint8_t*)dma_picture_context[3*i]->paddr;
-            dma_picture_context[3*i+1] = (bm_ion_context*)av_ion_malloc(
-                                        f_in->linesize[5]*f_in->height/2, 2, BM_CARD_ID(card_idx));
-            dma_picture[i]->data[5] = (uint8_t*)dma_picture_context[3*i+1]->paddr;
+            ret = bm_malloc_device_byte_heap(mem_handle, &mem_info[3*i] ,heap_id, f_in->linesize[4]*f_in->height);
+            if (ret != 0) {
+                av_buffer_unref(&(dma_picture[i]->buf[0]));
+                return NULL;
+            }
+            dma_picture[i]->data[4] = (uint8_t *)bm_mem_get_device_addr(mem_info[3*i]);
+
+            ret = bm_malloc_device_byte_heap(mem_handle, &mem_info[3*i+1],heap_id, f_in->linesize[5]*f_in->height / 2);
+            if (ret != 0) {
+                av_buffer_unref(&(dma_picture[i]->buf[0]));
+                bm_free_device(mem_handle, mem_info[3*i]);
+                return NULL;
+            }
+            dma_picture[i]->data[5] = (uint8_t *)bm_mem_get_device_addr(mem_info[3*i+1]);
 
             if(f_in->format == AV_PIX_FMT_YUV420P) {
-                dma_picture_context[3*i+2] = (bm_ion_context*)av_ion_malloc(
-                                        f_in->linesize[6]*f_in->height/2, 2, BM_CARD_ID(card_idx));
-                dma_picture[i]->data[6] = (uint8_t*)dma_picture_context[3*i+2]->paddr;
+                ret = bm_malloc_device_byte_heap(mem_handle, &mem_info[3*i+2], heap_id, f_in->linesize[6]*f_in->height / 2);
+                if (ret != 0) {
+                    av_buffer_unref(&(dma_picture[i]->buf[0]));
+                    bm_free_device(mem_handle, mem_info[3*i]);
+                    bm_free_device(mem_handle, mem_info[3*i+1]);
+                    return NULL;
+                }
+                dma_picture[i]->data[6] =(uint8_t *) bm_mem_get_device_addr(mem_info[3*i+2]);
             }
+
             return dma_picture[i];
         }else{
             if(av_buffer_get_ref_count(dma_picture[i]->buf[0]) < 2){
@@ -3377,10 +3419,9 @@ void CvVideoWriter_FFMPEG::close()
 
 #ifdef HAVE_BMCV
     releaseAvFrame();
-    av_ion_close(BM_CARD_ID(card_idx));
 #endif
 
-    init();
+    init(false);
 }
 
 #define CV_PRINTABLE_CHAR(ch) ((ch) < 32 ? '?' : (ch))
@@ -3475,13 +3516,6 @@ bool CvVideoWriter_FFMPEG::open( const char * filename, int fourcc,
     height &= -2;
     if( width <= 0 || height <= 0 )
         return false;
-
-#ifdef HAVE_BMCV
-    int ret = av_ion_open(BM_CARD_ID(card_idx));
-    if (ret < 0) {
-        return false;
-    }
-#endif
 
     //if(!output_flags){
         /* auto detect the output format from the name and fourcc code. */
@@ -3764,7 +3798,11 @@ bool CvVideoWriter_FFMPEG::open( const char * filename, int fourcc,
 
 #if LIBAVFORMAT_BUILD >= CALC_FFMPEG_VERSION(52, 111, 0)
         /* write the stream header, if any */
-        err = avformat_write_header(oc, NULL);
+        av_dict_set(&dict, "rtsp_transport", "tcp", 0);
+        av_dict_set(&dict, "stimeout", "5000000", 0);
+        err = avformat_write_header(oc, &dict);
+        if (dict != NULL)
+            av_dict_free(&dict);
 #else
         err = av_write_header( oc );
 #endif
@@ -3779,6 +3817,19 @@ bool CvVideoWriter_FFMPEG::open( const char * filename, int fourcc,
     frame_width = width;
     frame_height = height;
     frame_idx = 0;
+
+    bm_handle_t mem_handle;
+    int ret = bm_dev_request(&mem_handle, card_idx);
+    if (ret != BM_SUCCESS) {
+      CV_Error(CV_StsError, "Request Bm_handle Failed\n");
+      return false;
+    }
+    ret = bm_get_gmem_total_heap_num(mem_handle, &total_heap_num);
+    if (ret != 0) {
+        CV_Error(CV_StsError, "bm_get_gmem_total_heap_num failed!");
+        return false;
+    }
+    bm_dev_free(mem_handle);
     ok = true;
 
     return true;
@@ -3851,7 +3902,7 @@ CvVideoWriter_FFMPEG* cvCreateVideoWriter_FFMPEG( const char* filename, int four
     CvVideoWriter_FFMPEG* writer = (CvVideoWriter_FFMPEG*)malloc(sizeof(*writer));
     if (!writer)
         return 0;
-    writer->init();
+    writer->init(true);
     if( writer->open( filename, fourcc, fps, width, height, isColor != 0, id, encodeParams ))
     {
         return writer;

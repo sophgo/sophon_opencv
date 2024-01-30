@@ -1382,7 +1382,7 @@ static int write_output_data(void *context, uint8_t const *data, uint32_t size,
 }
 
 bool BMJpegEncoder::prepareExternalDMABuffer(BmJpuFramebuffer &framebuffer, int width, int height,
-                                             const Mat& img, BmJpuWrappedDMABuffer &wrapped_dma_buffer)
+                                             const Mat& img, bm_device_mem_t &wrapped_dma_mem)
 {
     int frame_total_size;
     /* Initialize the input framebuffer */
@@ -1434,14 +1434,14 @@ bool BMJpegEncoder::prepareExternalDMABuffer(BmJpuFramebuffer &framebuffer, int 
     /* The input frames come in external DMA memory */
     /* The input frames already come in DMA / physically contiguous memory,
      * so the encoder can read from them directly. */
-    bm_jpu_init_wrapped_dma_buffer(&wrapped_dma_buffer);
+    // bm_jpu_init_wrapped_dma_buffer(&wrapped_dma_buffer);
 
     /* The EXTERNAL DMA buffer filled with frame data */
-    wrapped_dma_buffer.physical_address = img.avAddr(4);
+    wrapped_dma_mem.u.device.device_addr = img.avAddr(4);
     /* The size of EXTERNAL DMA buffer */
-    wrapped_dma_buffer.size = frame_total_size;
+    wrapped_dma_mem.size = frame_total_size;
 
-    framebuffer.dma_buffer = (BmJpuDMABuffer*)&wrapped_dma_buffer;
+    framebuffer.dma_buffer = &wrapped_dma_mem;
 
     return true;
 }
@@ -1712,7 +1712,8 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     int bs_buffer_size;
     BmJpuFramebuffer framebuffer;
-    BmJpuWrappedDMABuffer wrapped_dma_buffer;
+    // BmJpuWrappedDMABuffer wrapped_dma_buffer;
+    bm_device_mem_t wrapped_dma_mem;
     BmJpuJPEGEncParams enc_params; /* Set up the encoding parameters */
 
     bool b_yuv_mat = img.avOK();
@@ -1737,7 +1738,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
     }
     else
     {
-        if(!prepareExternalDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, img, wrapped_dma_buffer))
+        if(!prepareExternalDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, img, wrapped_dma_mem))
             return false;
     }
     /* Do the actual encoding */

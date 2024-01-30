@@ -295,10 +295,10 @@ void usage(char *argv_0){
     cout << "usage:  test encoder by HW(h.264/h.265) with different container !!" << endl;
 #ifdef USING_SOC
     cout << "\t" << argv_0 << " input code_type frame_num outputname yuv_enable roi_enable [encodeparams]" <<endl;
-    cout << "\t" << "eg: " << argv_0 << " rtsp://admin:bitmain.com@192.168.1.14:554  H265enc  30 encoder_test265.ts 1 0 bitrate=1000" <<endl;
+    cout << "\t" << "eg: " << argv_0 << " rtsp://admin:bitmain.com@192.168.1.14:554  H265enc  10000 encoder_test265.ts 1 0 bitrate=1000" <<endl;
 #else
     cout << "\t" << argv_0 << " input code_type frame_num outputname yuv_enable roi_enable [device_id] [encodeparams]" <<endl;
-    cout << "\t" << "eg: " << argv_0 << " rtsp://admin:bitmain.com@192.168.1.14:554  H265enc  30 encoder_test265.ts 1 0 0 bitrate=1000" <<endl;
+    cout << "\t" << "eg: " << argv_0 << " rtsp://admin:bitmain.com@192.168.1.14:554  H265enc  10000 encoder_test265.ts 1 0 0 bitrate=1000" <<endl;
 #endif
     cout << "params:" << endl;
     cout << "\t" << "<code_type>: H264enc is h264; H265enc is h265." << endl;

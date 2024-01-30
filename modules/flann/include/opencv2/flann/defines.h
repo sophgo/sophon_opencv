@@ -52,7 +52,7 @@
 
 #undef FLANN_PLATFORM_32_BIT
 #undef FLANN_PLATFORM_64_BIT
-#if defined __amd64__ || defined __x86_64__ || defined _WIN64 || defined _M_X64 || defined(__sw_64__) || defined(__loongarch64) || (defined(__mips__) && (__mips == 64))
+#if defined __amd64__ || defined __x86_64__ || defined _WIN64 || defined _M_X64 || defined(__sw_64__) || defined(__loongarch64) || defined(__riscv) || (defined(__mips__) && (__mips == 64))
 #define FLANN_PLATFORM_64_BIT
 #else
 #define FLANN_PLATFORM_32_BIT

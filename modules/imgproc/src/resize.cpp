@@ -3739,8 +3739,13 @@ void cv::resize( InputArray _src, OutputArray _dst, Size dsize,
     Mat src = _src.getMat();
 
 #if (defined HAVE_BMCV) && (defined USING_SOC)
+    char *softResize = getenv("SET_SOC_SOFT_RESIZE");
+    int softResizeInt = 0;
+    if(softResize)
+        softResizeInt = atoi(softResize);
+
     if((interpolation == INTER_LINEAR /*|| interpolation == INTER_NEAREST*/)&&
-       (!(src.u ==0 ||src.u->addr == 0)) &&
+       (!(src.u ==0 ||src.u->addr == 0)) && softResizeInt == 0 &&
        src.depth() == CV_8U && src.u->addr &&
        (src.cols > 240 && src.rows > 240) &&(dsize.height >240 && dsize.width > 240) )
         // only support 8U resize, for dst is small than  240 cpu will be faster

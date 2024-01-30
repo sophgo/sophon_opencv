@@ -395,7 +395,7 @@ void *video_encoder_pthread(void * arg)
         if (!writer.isOpened())
         {
             writer.open("", VideoWriter::fourcc('H', '2', '6', '4'),
-                        25, Size(g_enc_cif_w, g_enc_cif_h),  "gop=30:gop_preset=2",
+                        25, Size(g_enc_cif_w, g_enc_cif_h),  "gop=30:gop_preset=2:bitrate=200k",
                         true, g_card[id]);
             if (!writer.isOpened()) {
                 return NULL;

@@ -10,6 +10,22 @@ if(WITH_WIN32UI)
     "${OpenCV_SOURCE_DIR}/cmake/checks/win32uitest.cpp"
     CMAKE_FLAGS "-DLINK_LIBRARIES:STRING=user32;gdi32")
 endif()
+#If you want to compile so that opencv can call qt
+#1: Added -DWITH-QT option
+#2: Add With QT，Place the cross compiled qt package under middleware-soc
+#3: use vidbasic
+if(WITH_QT)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${OpenCV_SOURCE_DIR}/../qt/lib/cmake")
+    set(Qt5_ROOT ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5)
+    set(Qt5_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5)
+    set(Qt5Core_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Core)
+    set(Qt5Gui_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Gui)
+    set(Qt5Widgets_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Widgets)
+    set(Qt5Test_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Test)
+    set(Qt5Concurrent_DIR ${OpenCV_SOURCE_DIR}/../qt/lib/cmake/Qt5Concurrent)
+    include_directories(${OpenCV_SOURCE_DIR}/../qt/include)
+    link_directories(${OpenCV_SOURCE_DIR}/../qt/lib)
+endif()
 
 # --- QT4 ---
 ocv_clear_vars(HAVE_QT HAVE_QT5)

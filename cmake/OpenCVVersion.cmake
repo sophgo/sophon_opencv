@@ -12,6 +12,13 @@ set(OPENCV_VERSION "${OPENCV_VERSION_PLAIN}${OPENCV_VERSION_STATUS}")
 
 set(OPENCV_SOVERSION "${OPENCV_VERSION_MAJOR}.${OPENCV_VERSION_MINOR}")
 set(OPENCV_LIBVERSION "${OPENCV_VERSION_MAJOR}.${OPENCV_VERSION_MINOR}.${OPENCV_VERSION_PATCH}")
+execute_process(
+    COMMAND bash -c "git describe --tags --match v* | sed -e 's/.*\\([0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*\\).*/\\1/'"
+    OUTPUT_VARIABLE GIT_VERSION)
+if(NOT "${GIT_VERSION}" STREQUAL "")
+    STRING(REGEX REPLACE "[\n\t\r]" "" GIT_VERSION ${GIT_VERSION})
+    set(OPENCV_LIBVERSION "${OPENCV_LIBVERSION}-sophon-${GIT_VERSION}")
+endif()
 
 # create a dependency on the version file
 # we never use the output of the following command but cmake will rerun automatically if the version file changes

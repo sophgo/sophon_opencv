@@ -1,24 +1,3 @@
-/* Simplified API for JPEG en- and decoding with the BitMain SoC
- * Copyright (C) 2018 Solan Shang
- * Copyright (C) 2014 Carlos Rafael Giani
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
- * USA
- */
-
-
 /* This is a convenience interface for simple en- and decoding of JPEG data.
  * For merely en/decoding JPEGs, having to set up a JPU en/decoder involves
  * a considerable amount of boilerplate code. This interface takes care of
@@ -68,6 +47,9 @@ typedef struct
     BmJpuColorFormat color_format;
 
     int chroma_interleave;
+
+    int framebuffer_recycle;
+    size_t framebuffer_size;
 }
 BmJpuJPEGDecInfo;
 
@@ -76,16 +58,14 @@ typedef struct
 {
     BmJpuDecoder *decoder;
 
-    BmJpuDMABufferAllocator *dma_buffer_allocator;
-
-    BmJpuDMABuffer *bitstream_buffer;
+    bm_device_mem_t *bitstream_buffer;
     size_t bitstream_buffer_size;
     unsigned int bitstream_buffer_alignment;
 
     BmJpuDecInitialInfo initial_info;
 
     BmJpuFramebuffer *framebuffers;
-    BmJpuDMABuffer **fb_dmabuffers;
+    bm_device_mem_t *fb_dmabuffers;
     unsigned int num_framebuffers;
     unsigned int num_extra_framebuffers; // TODO
     BmJpuFramebufferSizes calculated_sizes;
@@ -93,13 +73,17 @@ typedef struct
     BmJpuRawFrame raw_frame;
     int device_index;
 
-    BmJpuFramebuffer *cur_buffer;
+    BmJpuFramebuffer *cur_framebuffer;
+    bm_device_mem_t *cur_dma_buffer;
     void *opaque;
 
     int rotationEnable;
     int mirrorEnable;
     int mirrorDirection;
     int rotationAngle;
+
+    int framebuffer_recycle;
+    size_t framebuffer_size;
 }
 BmJpuJPEGDecoder;
 
@@ -117,7 +101,6 @@ BmJpuJPEGDecoder;
  * If unsure, keep this to zero. */
 DECL_EXPORT BmJpuDecReturnCodes bm_jpu_jpeg_dec_open(BmJpuJPEGDecoder **jpeg_decoder,
                                          BmJpuDecOpenParams *open_params,
-                                         BmJpuDMABufferAllocator *dma_buffer_allocator,
                                          unsigned int num_extra_framebuffers);
 
 /* Closes a JPEG decoder instance. Trying to close the same instance multiple times results in undefined behavior. */
@@ -220,6 +203,7 @@ typedef struct
     int mirrorEnable;
     int mirrorDirection;
     int rotationAngle;
+    int bs_in_device;
 }
 BmJpuJPEGEncParams;
 
@@ -233,7 +217,6 @@ typedef struct _BmJpuJPEGEncoder BmJpuJPEGEncoder;
  * If dma_buffer_allocator is NULL, the default encoder allocator is used.
  */
 DECL_EXPORT BmJpuEncReturnCodes bm_jpu_jpeg_enc_open(BmJpuJPEGEncoder **jpeg_encoder,
-                                         BmJpuDMABufferAllocator *dma_buffer_allocator,
                                          int bs_buffer_size,
                                          int device_index);
 
@@ -268,6 +251,8 @@ DECL_EXPORT BmJpuEncReturnCodes bm_jpu_jpeg_enc_encode(BmJpuJPEGEncoder *jpeg_en
                                            size_t *output_buffer_size);
 
 DECL_EXPORT int bm_jpu_jpeg_get_dump(void);
+
+DECL_EXPORT int bm_jpu_hw_reset_all();
 
 #ifdef __cplusplus
 }
