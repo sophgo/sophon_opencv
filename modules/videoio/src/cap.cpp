@@ -386,7 +386,7 @@ void VideoCapture::release()
 {
     CV_TRACE_FUNCTION();
     if (isOpened() && (icap.use_count() == 1))
-        icap->release(); // IVideoCapture release resouce. Here thread competetion risk exists for this patch. But capture is seldom shared with other thread, so this is acceptable. 
+        icap->release(); // IVideoCapture release resouce. Here thread competetion risk exists for this patch. But capture is seldom shared with other thread, so this is acceptable.
     icap.release(); // shared_ptr release pointer
 }
 
@@ -625,7 +625,7 @@ bool VideoWriter::open(const String& filename, int fourcc, double fps, const Siz
     return open(filename, CAP_ANY, fourcc, fps, frameSize, params, id);
 }
 
-bool VideoWriter::open(const String& filename, int _fourcc, double fps, Size frameSize, 
+bool VideoWriter::open(const String& filename, int _fourcc, double fps, Size frameSize,
                        const String& encodeParams, bool isColor, int id)
 {
     CV_INSTRUMENT_REGION();
