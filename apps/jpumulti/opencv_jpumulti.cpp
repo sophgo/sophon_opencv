@@ -24,7 +24,7 @@ using namespace std;
 #define gettid() syscall(SYS_gettid)
 #endif
 #define MAX_FILE_PATH    256
-#define MAX_NUM_INSTANCE  12
+#define MAX_NUM_INSTANCE  16
 
 typedef struct {
     void* new_mat;

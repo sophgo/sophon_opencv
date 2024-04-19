@@ -63,10 +63,10 @@ cmake -DCHIP=bm1688         \
                             ${extern_lib_path}/3rdparty/libbmlib/include;       \
                             ${extern_lib_path}/3rdparty/libyuv/include;         \
                             ${extern_lib_path}/3rdparty/libjpeg-turbo/include;  \
-                            ${extern_lib_path}/hardware/jpeg/inc;               \
-                            ${extern_lib_path}/hardware/video/dec/inc;          \
-                            ${extern_lib_path}/hardware/video/enc/inc;          \
-                            ${extern_lib_path}/hardware/bmcv/include"           \
+                            ${extern_lib_path}/hardware/jpeg/include;               \
+                            ${extern_lib_path}/hardware/video/dec/include;          \
+                            ${extern_lib_path}/hardware/video/enc/include;          \
+
     -DFFMPEG_LIBRARY_DIRS="${extern_lib_path}/3rdparty/ffmpeg/lib;              \
                             ${extern_lib_path}/3rdparty/libbmlib/lib;           \
                             ${extern_lib_path}/3rdparty/libyuv/lib;             \

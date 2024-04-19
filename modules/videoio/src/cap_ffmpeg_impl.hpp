@@ -2506,8 +2506,8 @@ bool CvCapture_FFMPEG::retrieveFrame(int, cv::OutputArray image)
     cv::Mat comp(picture, card);
 
     /*  hardcoded Fix: mat.rows for display height, mat.cols for display width [xun]*/
-    comp.cols = video_st->codecpar->width;
-    comp.rows = video_st->codecpar->height;
+    comp.cols = context->width;
+    comp.rows = context->height;
 
     if (myimage.empty() || (out_yuv > 0 && !myimage.avOK()) ||
         (out_yuv > 0 && (myimage.avFormat() != AV_PIX_FMT_YUV420P)) ||
@@ -3206,7 +3206,7 @@ struct CvVideoWriter_FFMPEG
     bool writeFrame( cv::InputArray image, char *data=NULL, int *len=NULL, void *roiinfo = NULL);
     bool writeHWFrame(cv::InputArray input);
     double getProperty(int propId) const;
-
+    int flush_writer(char *data_out=NULL, int *len=NULL);
     void init(bool is_first_init);
     bool AddRoiInfo(AVFrame * picture,  void *roiinfo);
 #ifdef HAVE_BMCV
@@ -3520,6 +3520,76 @@ static AVCodecContext * icv_configure_video_stream_FFMPEG(AVFormatContext *oc,
 
 static const int OPENCV_NO_FRAMES_WRITTEN_CODE = 1000;
 
+static int icv_av_flush_frame_FFMPEG(AVFormatContext * oc, AVStream * video_st, AVCodecContext * c,
+                                      uint8_t *, uint32_t, int frame_idx,
+                                      char *data, int *len, bool output_flags)
+{
+    int ret = BM_SUCCESS;
+        /* flush the image */
+#if USE_AV_SEND_FRAME_API
+    ret = avcodec_send_frame(c, NULL);    // send null
+
+    while (1){
+        AVPacket *pkt = av_packet_alloc();
+        pkt->data = NULL;
+        pkt->size = 0;
+        pkt->stream_index = video_st->index;
+        ret = avcodec_receive_packet(c, pkt);
+
+        if (ret == 0) {  // get image
+            av_packet_rescale_ts(pkt, c->time_base, video_st->time_base);
+            if(output_flags) {
+                if (data != NULL) {
+                    *len = pkt->size;
+                    memcpy(data,pkt->data,pkt->size);
+                }
+            }else{
+                ret = av_write_frame(oc, pkt);
+                av_packet_free(&pkt);
+                continue;
+            }
+
+        }
+        av_packet_free(&pkt);
+        break;
+    }
+
+#else
+    CV_UNUSED(frame_idx);
+    AVPacket pkt;
+    av_init_packet(&pkt);
+    int got_output = 0;
+    pkt.data = NULL;
+    pkt.size = 0;
+    ret = avcodec_encode_video2(c, &pkt, NULL, &got_output);
+    if (ret < 0)
+        ;
+    else if (got_output) {
+        if (pkt.pts != (int64_t)AV_NOPTS_VALUE)
+            pkt.pts = av_rescale_q(pkt.pts, c->time_base, video_st->time_base);
+        if (pkt.dts != (int64_t)AV_NOPTS_VALUE)
+            pkt.dts = av_rescale_q(pkt.dts, c->time_base, video_st->time_base);
+        if (pkt.duration)
+            pkt.duration = av_rescale_q(pkt.duration, c->time_base, video_st->time_base);
+        pkt.stream_index= video_st->index;
+        if(output_flags) {
+            if (data != NULL) {
+                *len = pkt.size;
+                memcpy(data,pkt.data,pkt.size);
+            }
+        }else{
+            ret = av_write_frame(oc, &pkt);
+        }
+        // ret = av_write_frame(oc, &pkt);
+        _opencv_ffmpeg_av_packet_unref(&pkt);
+    }
+    else
+        ret = OPENCV_NO_FRAMES_WRITTEN_CODE;
+#endif
+    return ret;
+
+}
+
 static int icv_av_write_frame_FFMPEG( AVFormatContext * oc, AVStream * video_st, AVCodecContext * c,
                                       uint8_t *, uint32_t,
                                       AVFrame * picture, int frame_idx,
@@ -3558,8 +3628,11 @@ static int icv_av_write_frame_FFMPEG( AVFormatContext * oc, AVStream * video_st,
             ret = 0;
         } else {
             ret = avcodec_send_frame(c, picture);
-            if (ret < 0)
-                CV_LOG_ERROR(NULL, "Error sending frame to encoder (avcodec_send_frame)");
+            if (ret < 0){
+                if (ret != AVERROR_EOF)
+                    CV_LOG_ERROR(NULL, "Error sending frame to encoder (avcodec_send_frame)");
+            }
+
         }
         while (ret >= 0)
         {
@@ -3577,11 +3650,10 @@ static int icv_av_write_frame_FFMPEG( AVFormatContext * oc, AVStream * video_st,
                     }
                 }else{
                     ret = av_write_frame(oc, pkt);
+                    av_packet_free(&pkt);
+                    continue;
                 }
-                av_packet_free(&pkt);
-                continue;
             }
-
             av_packet_free(&pkt);
             break;
         }
@@ -3617,6 +3689,35 @@ static int icv_av_write_frame_FFMPEG( AVFormatContext * oc, AVStream * video_st,
         else
             ret = OPENCV_NO_FRAMES_WRITTEN_CODE;
 #endif
+    }
+    return ret;
+}
+int CvVideoWriter_FFMPEG::flush_writer(char *data_out, int *len)
+{
+    int ret = -1;
+
+    if (output_flags){
+        ret = icv_av_flush_frame_FFMPEG(oc, video_st, context, outbuf, outbuf_size, frame_idx, data_out, len, output_flags);
+        if(ret >= 0 && len !=0){   // return len > 0 shows that there are still images to be got
+            return ret;
+        }
+    }else{  //if no output need, image write here, flush loop till flush end
+        while(1){
+            ret = icv_av_flush_frame_FFMPEG(oc, video_st, context, outbuf, outbuf_size, frame_idx, data_out, len, output_flags);
+            if (ret >= 0){
+                continue;
+            }else{
+                if (ret == AVERROR(EAGAIN))
+                    continue;
+
+                else if (ret == AVERROR_EOF)
+                    av_log(NULL, AV_LOG_INFO, "%s : flush finish !!\n",__func__);
+
+                else
+                    av_log(NULL, AV_LOG_ERROR, "%s :avcodec_receive_packet error,ret=%d \n",__func__,ret);
+                return ret;
+            }
+        }
     }
     return ret;
 }
@@ -3758,7 +3859,6 @@ bool CvVideoWriter_FFMPEG::writeFrame( const unsigned char* data, int step, int 
     }
 
     frame_idx++;
-
     return ret;
 }
 
@@ -3836,7 +3936,6 @@ bool CvVideoWriter_FFMPEG::writeHWFrame(cv::InputArray input) {
     hw_frame->pts = frame_idx;
     icv_av_write_frame_FFMPEG( oc, video_st, context, outbuf, outbuf_size, hw_frame, frame_idx, NULL, NULL, output_flags);
     frame_idx++;
-
     av_frame_free(&hw_frame);
 
     return true;
@@ -3850,7 +3949,6 @@ bool CvVideoWriter_FFMPEG::writeFrame( cv::InputArray image, char *data, int *le
 {
     bool ret = false;
     cv::Mat m_in = image.getMat();
-
     if (m_in.avOK()) {
 #ifdef HAVE_BMCV
         if ((m_in.avFormat() == AV_PIX_FMT_NV12) || (m_in.avFormat() == AV_PIX_FMT_YUV420P)){
@@ -3990,7 +4088,6 @@ bool CvVideoWriter_FFMPEG::convertAndEncode( cv::Mat m_in, char *data, int *len,
         }
         ret = icv_av_write_frame_FFMPEG( oc, video_st, context, outbuf, outbuf_size, f_out, frame_idx, data, len, output_flags) >= 0;
     }
-
     return ret;
 }
 

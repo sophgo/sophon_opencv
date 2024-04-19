@@ -29,7 +29,13 @@
 
 using namespace cv;
 using namespace std;
-
+// void signal_handler(int signum);
+// void usage(char *argv_0);
+// #ifdef __linux__
+// void *videoWriteThread(void *arg);
+// #elif _WIN32
+// DWORD WINAPI videoWriteThread(void* arg);
+// #endif
 typedef struct  threadArg{
     const char  *inputUrl;
     const char  *codecType;
@@ -50,7 +56,10 @@ typedef struct  threadArg{
 //std::queue<Mat> g_image_queue;
 std::mutex g_video_lock;
 
-int exit_flag = 0;
+int exit_flag       = 0;  // EXIT program flag
+int eof             = 0;   //End of File flag.
+int takeoutcount    = 0;  // ensure data number
+
 #ifdef __linux__
 void signal_handler(int signum){
     exit_flag = 1;
@@ -68,12 +77,21 @@ static BOOL CtrlHandler(DWORD fdwCtrlType)
     }
 }
 #endif
+static inline void uwait(int usecond){
 
 #ifdef __linux__
-void *videoWriteThread(void *arg){
+    usleep(usecond * 1000);
 #elif _WIN32
-DWORD WINAPI videoWriteThread(void* arg){
+    Sleep(usecond);
 #endif
+
+}
+#ifdef __linux__
+void *videoWriteThread(void *arg)
+#elif _WIN32
+DWORD WINAPI videoWriteThread(void* arg)
+#endif
+{
     THREAD_ARG *threadPara = (THREAD_ARG *)(arg);
     FILE *fp_out           = NULL;
     char *out_buf          = NULL;
@@ -86,6 +104,7 @@ DWORD WINAPI videoWriteThread(void* arg){
     int64_t curframe_start = 0;
     int64_t curframe_end   = 0;
     Mat *toEncImage;
+    int flush_status       = 0;  // 0 is stop , 1 flushed
 #ifdef __linux__
     struct timeval         tv;
 #endif
@@ -148,107 +167,142 @@ DWORD WINAPI videoWriteThread(void* arg){
         }
 
         //if(threadPara->startWrite && !g_image_queue.empty()) {
-        if(threadPara->startWrite && !threadPara->imageQueue->empty()) {
-            if((strcmp(threadPara->outputName,"NULL") != 0) && (strcmp(threadPara->outputName,"null") != 0)){
-                g_video_lock.lock();
-                //writer.write(g_image_queue.front());
-                toEncImage = threadPara->imageQueue->front();
-                g_video_lock.unlock();
-                writer.write(*toEncImage);
-
-            }else{
-                if(fp_out == NULL){
-                        fp_out = fopen("pkt.dump","wb+");
-                }
-                if(out_buf == NULL){
-                        out_buf = (char*)malloc(threadPara->imageCols * threadPara->imageRows * 4);
-                }
-                int out_buf_len = 0;
-                //writer.write(g_image_queue.front(),out_buf,&out_buf_len);
-                g_video_lock.lock();
-                toEncImage = threadPara->imageQueue->front();
-                g_video_lock.unlock();
-
-                if (threadPara->roiEnable == 1) {
-                    static unsigned int roi_frame_nums = 0;
-                    roi_frame_nums++;
-                    CV_RoiInfo  roiinfo;;
-
-                    if (strcmp(threadPara->codecType,"H264enc") ==0) {
-                        int nums = (BM_ALIGN16(threadPara->imageRows) >> 4) * (BM_ALIGN16(threadPara->imageCols) >> 4);
-                        roiinfo.numbers = nums;
-                        roiinfo.customRoiMapEnable = 1;
-                        roiinfo.field = (cv::RoiField*)malloc(sizeof(cv::RoiField)*nums);
-                        for (int i = 0;i <(BM_ALIGN16(threadPara->imageRows) >> 4);i++) {
-                            for (int j=0;j < (BM_ALIGN16(threadPara->imageCols) >> 4);j++) {
-                                int pos = i*(BM_ALIGN16(threadPara->imageCols) >> 4) + j;
-                                // roiinfo.field[pos].H264.mb_qp = roi_frame_nums%51;
-                                if ((i >= (BM_ALIGN16(threadPara->imageRows) >> 4)/2) && (j >= (BM_ALIGN16(threadPara->imageCols) >> 4)/2)) {
-                                    roiinfo.field[pos].H264.mb_qp = 10;
-                                }else{
-                                    roiinfo.field[pos].H264.mb_qp = 40;
-                                }
-                            }
-                        }
-                    } else if (strcmp(threadPara->codecType,"H265enc") ==0) {
-                        int nums = (BM_ALIGN64(threadPara->imageRows) >> 6) * (BM_ALIGN64(threadPara->imageCols) >> 6);
-                        roiinfo.numbers = nums;
-                        roiinfo.field = (cv::RoiField*)malloc(sizeof(cv::RoiField)*nums);
-                        roiinfo.customRoiMapEnable    = 1;
-                        roiinfo.customModeMapEnable   = 0;
-                        roiinfo.customLambdaMapEnable = 0;
-                        roiinfo.customCoefDropEnable  = 0;
-
-                        for (int i = 0;i <(BM_ALIGN64(threadPara->imageRows) >> 6);i++) {
-                            for (int j=0;j < (BM_ALIGN64(threadPara->imageCols) >> 6);j++) {
-                                int pos = i*(BM_ALIGN64(threadPara->imageCols) >> 6) + j;
-                                if ((i >= (BM_ALIGN64(threadPara->imageRows) >> 6)/2) && (j >= (BM_ALIGN64(threadPara->imageCols) >> 6)/2)) {
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_0 = 10;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_1 = 10;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_2 = 10;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_3 = 10;
-                                } else {
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_0 = 40;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_1 = 40;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_2 = 40;
-                                    roiinfo.field[pos].HEVC.sub_ctu_qp_3 = 40;
-
-                                }
-                                roiinfo.field[pos].HEVC.ctu_force_mode = 0;
-                                roiinfo.field[pos].HEVC.ctu_coeff_drop = 0;
-                                roiinfo.field[pos].HEVC.lambda_sad_0 = 0;
-                                roiinfo.field[pos].HEVC.lambda_sad_1 = 0;
-                                roiinfo.field[pos].HEVC.lambda_sad_2 = 0;
-                                roiinfo.field[pos].HEVC.lambda_sad_3 = 0;
-
-
-
-                            }
-                        }
+        if(threadPara->startWrite)
+        {
+            if((strcmp(threadPara->outputName,"NULL") != 0) && (strcmp(threadPara->outputName,"null") != 0))
+            {
+                if (!threadPara->imageQueue->empty()){
+                    // cout<<"Debug encode single image"<<endl;
+                    g_video_lock.lock();
+                    toEncImage = threadPara->imageQueue->front();
+                    takeoutcount++;
+                    g_video_lock.unlock();
+                    writer.write(*toEncImage);
+                }else{
+                    if( eof ){   // Currently queue is empty while end of file, start to flush.
+                        printf("Start to flush \n");
+                        Mat flushMat;
+                        writer.write(flushMat);
+                        flush_status = 1;
+                        printf("Flush end!\n");
+                        break;
                     }
-                    writer.write(*toEncImage,out_buf,&out_buf_len, &roiinfo);
+                    uwait(2);
+                    quit_times++;
                 }
-                else {
-                    writer.write(*toEncImage,out_buf,&out_buf_len);
+            }else  // need data return
+            {
+                if(fp_out == NULL)
+                    fp_out = fopen("pkt.dump","wb+");
+
+                if(out_buf == NULL)
+                    out_buf = (char*)malloc(threadPara->imageCols * threadPara->imageRows * 4);
+                int out_buf_len = 0;
+
+                if (!threadPara->imageQueue->empty()){
+                    g_video_lock.lock();
+                    toEncImage = threadPara->imageQueue->front();
+                    takeoutcount++;
+                    g_video_lock.unlock();
+
+                    if (threadPara->roiEnable == 1) {
+                        static unsigned int roi_frame_nums = 0;
+                        roi_frame_nums++;
+                        CV_RoiInfo roiinfo;
+                        roiinfo.field = NULL;
+
+                        if (strcmp(threadPara->codecType,"H264enc") ==0) {
+                            int nums = (BM_ALIGN16(threadPara->imageRows) >> 4) * (BM_ALIGN16(threadPara->imageCols) >> 4);
+                            roiinfo.numbers = nums;
+                            roiinfo.customRoiMapEnable = 1;
+                            roiinfo.field = (cv::RoiField*)malloc(sizeof(cv::RoiField)*nums);
+                            for (int i = 0;i <(BM_ALIGN16(threadPara->imageRows) >> 4);i++) {
+                                for (int j=0;j < (BM_ALIGN16(threadPara->imageCols) >> 4);j++) {
+                                    int pos = i*(BM_ALIGN16(threadPara->imageCols) >> 4) + j;
+                                    // roiinfo.field[pos].H264.mb_qp = roi_frame_nums%51;
+                                    if ((i >= (BM_ALIGN16(threadPara->imageRows) >> 4)/2) && (j >= (BM_ALIGN16(threadPara->imageCols) >> 4)/2)) {
+                                        roiinfo.field[pos].H264.mb_qp = 10;
+                                    }else{
+                                        roiinfo.field[pos].H264.mb_qp = 40;
+                                    }
+                                }
+                            }
+                        } else if (strcmp(threadPara->codecType,"H265enc") ==0) {
+                            int nums = (BM_ALIGN64(threadPara->imageRows) >> 6) * (BM_ALIGN64(threadPara->imageCols) >> 6);
+                            roiinfo.numbers = nums;
+                            roiinfo.field = (cv::RoiField*)malloc(sizeof(cv::RoiField)*nums);
+                            roiinfo.customRoiMapEnable    = 1;
+                            roiinfo.customModeMapEnable   = 0;
+                            roiinfo.customLambdaMapEnable = 0;
+                            roiinfo.customCoefDropEnable  = 0;
+
+                            for (int i = 0;i <(BM_ALIGN64(threadPara->imageRows) >> 6);i++) {
+                                for (int j=0;j < (BM_ALIGN64(threadPara->imageCols) >> 6);j++) {
+                                    int pos = i*(BM_ALIGN64(threadPara->imageCols) >> 6) + j;
+                                    if ((i >= (BM_ALIGN64(threadPara->imageRows) >> 6)/2) && (j >= (BM_ALIGN64(threadPara->imageCols) >> 6)/2)) {
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_0 = 10;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_1 = 10;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_2 = 10;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_3 = 10;
+                                    } else {
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_0 = 40;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_1 = 40;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_2 = 40;
+                                        roiinfo.field[pos].HEVC.sub_ctu_qp_3 = 40;
+
+                                    }
+                                    roiinfo.field[pos].HEVC.ctu_force_mode = 0;
+                                    roiinfo.field[pos].HEVC.ctu_coeff_drop = 0;
+                                    roiinfo.field[pos].HEVC.lambda_sad_0 = 0;
+                                    roiinfo.field[pos].HEVC.lambda_sad_1 = 0;
+                                    roiinfo.field[pos].HEVC.lambda_sad_2 = 0;
+                                    roiinfo.field[pos].HEVC.lambda_sad_3 = 0;
+                                }
+                            }
+                        }
+
+                        writer.write(*toEncImage, out_buf, &out_buf_len, &roiinfo);
+                        if (roiinfo.field != NULL) {
+                            free(roiinfo.field);
+                            roiinfo.field = NULL;
+                        }
+                    }else   // roienable = 0
+                        writer.write(*toEncImage, out_buf, &out_buf_len);
+
+                }else{ // queue is empty
+                    if( eof ){  //end of file while queue is empty,start to flush
+                        printf("Start to flush \n");
+                        Mat flushMat;
+                        while(1){
+                            writer.write(flushMat, out_buf, &out_buf_len);
+                            if(out_buf_len > 0){
+                                fwrite(out_buf, 1, out_buf_len, fp_out);
+                                out_buf_len = 0; //reset out_buf_len
+                            }else
+                                break;
+                        }
+                        flush_status = 1;
+                        printf("Flush end!!!  \n");
+                        break;
+                    }
+                    // if not end of file,keep waiting
+                    uwait(2);
+                    quit_times++;
                 }
-                if(out_buf_len > 0){
-                    fwrite(out_buf,1,out_buf_len,fp_out);
-                }
+                // write to pkt.dump
+                if(out_buf_len > 0)
+                    fwrite(out_buf, 1, out_buf_len, fp_out);
+
             }
 
-            g_video_lock.lock();
-            //g_image_queue.pop();
-            threadPara->imageQueue->pop();
-            delete toEncImage;
-            g_video_lock.unlock();
-            quit_times = 0;
-        }else{
-#ifdef __linux__
-            usleep(2000);
-#elif _WIN32
-            Sleep(2);
-#endif
-            quit_times++;
+            if( !threadPara->imageQueue->empty() && takeoutcount > 0){
+                g_video_lock.lock();
+                threadPara->imageQueue->pop();
+                delete toEncImage;
+                takeoutcount--;
+                g_video_lock.unlock();
+                quit_times = 0;
+            }
         }
         //only Push video stream
         if(is_stream){
@@ -269,11 +323,19 @@ DWORD WINAPI videoWriteThread(void* arg){
             Sleep((1000 / threadPara->fps) - (curframe_end - curframe_start)/1000 - 1);
 #endif
         }
-        //if((exit_flag && g_image_queue.size() == 0) || quit_times >= 1000){//No bitstream exits after a delay of three seconds
-        if(exit_flag && threadPara->imageQueue->size() == 0){//No bitstream exits after a delay of three seconds
+
+        if((eof && threadPara->imageQueue->size() == 0 && flush_status ) || quit_times >= 1000 || exit_flag)
+        {//No bitstream exits after a delay of three seconds
+            flush_status = 0;
+            exit_flag = 1;
             break;
         }
+        else if (!eof || !threadPara->imageQueue->size() == 0 || !flush_status){
+            continue;
+        }
+
     }
+
     writer.release();
     if(fp_out != NULL){
         fclose(fp_out);
@@ -304,6 +366,7 @@ void usage(char *argv_0){
 #endif
     cout << "params:" << endl;
     cout << "\t" << "<code_type>: H264enc is h264; H265enc is h265." << endl;
+    cout << "\t" << "<framenum>: frame number you want to output,default is video frames"<<endl;
     cout << "\t" << "<outputname>: null or NULL output pkt.dump." << endl;
     cout << "\t" << "<yuv_enable>: 0 decode output bgr; 1 decode output yuv420." << endl;
     cout << "\t" << "<roi_enable>: 0 disable roi encoder; 1 enable roi encoder." << endl;
@@ -403,17 +466,16 @@ int main(int argc, char* argv[])
     // Set scalar size
     //int height = (int) cap.get(cv::CAP_PROP_FRAME_HEIGHT);
     //int width  = (int) cap.get(cv::CAP_PROP_FRAME_WIDTH);
+
     cout << "orig CAP_PROP_FRAME_HEIGHT: " << (int) cap.get(CAP_PROP_FRAME_HEIGHT) << endl;
     cout << "orig CAP_PROP_FRAME_WIDTH: " << (int) cap.get(CAP_PROP_FRAME_WIDTH) << endl;
+    cout << "orig Video Total Frame Number: " << (int) cap.get(cv::CAP_PROP_FRAME_COUNT) << endl;
 
     if(threadPara->startWrite)
     {
-        Mat image;
-        cap.read(image);
-        //threadPara->imageQueue->push(image);
         threadPara->fps = cap.get(CAP_PROP_FPS);
-        threadPara->imageCols = image.cols;
-        threadPara->imageRows = image.rows;
+        threadPara->imageCols = cap.get(CAP_PROP_FRAME_WIDTH);
+        threadPara->imageRows = cap.get(CAP_PROP_FRAME_HEIGHT);
 #ifdef WIN32
         threadId = CreateThread(NULL, 0, videoWriteThread, threadPara, 0, NULL);
 #else
@@ -429,13 +491,8 @@ int main(int argc, char* argv[])
 #endif
 
     int read_times = MAX_READ_TIMEOUT;
-    int i_frame_nums = 0;
-    while(true)
+    for(int frame_num = 0; frame_num < threadPara->frameNum;)
     {
-        if (i_frame_nums >= threadPara->frameNum) {
-            break;
-        }
-
         if (read_times <= 0) {
             break;
         }
@@ -443,16 +500,13 @@ int main(int argc, char* argv[])
         if(exit_flag){
             break;
         }
-        //Mat image;
         Mat *image = new Mat;
         // wait for a new frame from camera and store it into 'frame'
         cap.read(*image);
-
         // check if we succeeded
-        //if (image.empty()) {
         if (image->empty()) {
             if ((int)cap.get(CAP_PROP_STATUS) == 2) {     // eof
-                cout << "file ends!" << endl;
+                cout << "______________file ends!______________" << endl;
                 cap.release();
                 cap.open(threadPara->inputUrl, CAP_FFMPEG, threadPara->deviceId);
                 if(threadPara->yuvEnable == 1){
@@ -460,34 +514,24 @@ int main(int argc, char* argv[])
                 }
                 cout << "loop again " << endl;
             } else {
-                cerr << "image is enpty! blank frame grabbed\n";
+                cerr << "image is empty! blank frame grabbed\n";
             }
             read_times--;
-            usleep(10);
-
+            uwait(1);
             continue;
         }
-
         read_times = MAX_READ_TIMEOUT;
-
         g_video_lock.lock();
-        //g_image_queue.push(image);
         threadPara->imageQueue->push(image);
         g_video_lock.unlock();
         if(threadPara->startWrite){
-            //while(g_image_queue.size() >= IMAGE_MATQUEUE_NUM){
             while(threadPara->imageQueue->size() >= IMAGE_MATQUEUE_NUM){
-#ifdef __linux__
-                usleep(2000);
-#elif _WIN32
-                Sleep(2);
-#endif
-                if(exit_flag){
+                uwait(2);
+                if(exit_flag)
                     break;
-                }
             }
         }
-        if ((i_frame_nums+1) % 300 == 0)
+        if ((frame_num+1) % 300 == 0)
         {
             unsigned int time;
 #ifdef WIN32
@@ -497,12 +541,14 @@ int main(int argc, char* argv[])
             gettimeofday(&tv2, NULL);
             time = (tv2.tv_sec - tv1.tv_sec)*1000 + (tv2.tv_usec - tv1.tv_usec)/1000;
 #endif
-            printf("current process is %f fps!\n", (i_frame_nums * 1000.0) / (float)time);
+            printf("current process is %f fps!\n", (frame_num * 1000.0) / (float)time);
         }
-        i_frame_nums++;
+
+        frame_num++;
     }
-    printf("decode thread exit. \n");
-    exit_flag = 1;
+
+    eof = 1;
+    printf("End of file. \n Decode thread exit. \n");
 
 #ifdef WIN32
     WaitForSingleObject(threadId, INFINITE);
@@ -518,6 +564,7 @@ int main(int argc, char* argv[])
         free(threadPara);
         threadPara = NULL;
     }
+    cout<<"VideoCapture has been released! VideoWriter has been released! Main function exit"<<endl;
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;
 }

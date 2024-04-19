@@ -155,7 +155,6 @@ public:
             if (u->origdata) munmap(u->origdata, u->size);
         } else
         {
-          ionInvalidate(u->origdata, u->size);
           ionFree(u->origdata, u->size, u->fd);
         }
         u->origdata = 0;

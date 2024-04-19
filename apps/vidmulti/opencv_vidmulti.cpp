@@ -215,7 +215,7 @@ void* stat_pthread(void *arg)
 #else
         sleep(INTERVAL);
 #endif
-        
+
         if (dis_mode == 1) {
             for (int i = 0; i < thread_num; i++) {
                 if (i == 0)
@@ -394,7 +394,6 @@ void *video_encoder_pthread(void * arg)
 
         if (!writer.isOpened())
         {
-            printf("vidmulti call open line=%d\n", __LINE__);
             writer.open("", VideoWriter::fourcc('H', '2', '6', '4'),
                         25, Size(g_enc_cif_w, g_enc_cif_h),  "gop=30:gop_preset=2:bitrate=200k",
                         true, g_card[id]);
@@ -467,12 +466,10 @@ void *video_download_pthread(void * arg)
     g_thread_running[id] = g_thread_running[id] | 0x1;
     g_video_lock[id].unlock();
 
-    printf("vidmulti call open line=%d\n", __LINE__);
     if (!cap->open(g_filename[id], cv::CAP_ANY, g_card[id])) {
         cout << "open " << g_filename[id] << " failed!" << endl;
         return NULL;
     }
-    printf("vidmulti call open line=%d\n", __LINE__);
 
     if (!cap->isOpened()) {
         cout << "Failed to open camera!" << endl;
@@ -534,7 +531,6 @@ void *video_download_pthread(void * arg)
 
                 //if(!reopen_flag)
                 cap->release();
-                printf("vidmulti call open line=%d\n", __LINE__);
                 cap->open(g_filename[id], cv::CAP_ANY, g_card[id]);
                 cap->set(cv::CAP_PROP_OUTPUT_YUV, PROP_TRUE);
                 cout << "loop again id:"<< id  <<"rtsp: "<< g_filename[id] << endl;
@@ -545,7 +541,6 @@ void *video_download_pthread(void * arg)
                 if (empty_times > 50*30){
                     cout << "image empty times:" << empty_times <<endl;
                     cap->release();
-                    printf("vidmulti call open line=%d\n", __LINE__);
                     cap->open(g_filename[id], cv::CAP_ANY, g_card[id]);
                     cap->set(cv::CAP_PROP_OUTPUT_YUV, PROP_TRUE);
                     cout << "loop again id:"<< id  <<"rtsp: "<< g_filename[id] << endl;
@@ -584,10 +579,9 @@ void *video_download_pthread(void * arg)
 #endif
 
         count[id]++;
-		
+
         if ((reopen_flag==1)&&(count[id] % 400 == 0)){
             cap->release();
-            printf("vidmulti call open line=%d\n", __LINE__);
             cap->open(g_filename[id], cv::CAP_ANY, g_card[id]);
             if (cap->isOpened()) {
                 cout << "reopen camera!" << endl;
@@ -730,6 +724,14 @@ int main(int argc, char **argv)
     int thread_id[thread_num];
     pthread_t image_thread[thread_num];
     pthread_t stat_h;
+
+    pthread_attr_t attr;
+    struct sched_param attr_param;
+
+    attr_param.sched_priority = 80;
+    pthread_attr_init(&attr);
+    pthread_attr_setschedpolicy(&attr, SCHED_RR);
+    pthread_attr_setschedparam(&attr, &attr_param);
 #endif
     srand((unsigned)time(NULL));
 
@@ -743,8 +745,8 @@ int main(int argc, char **argv)
      */
     if (!test_mode)
         register_signal_handler();
-    else
-        cout << "now we are at test mode, signal_handler is not registered" << endl;
+    //else
+    //    cout << "now we are at test mode, signal_handler is not registered" << endl;
 
     for (int i = 0; i < thread_num; i++) {
         thread_id[i] = i;
@@ -752,36 +754,38 @@ int main(int argc, char **argv)
         vc_thread[i] = CreateThread(NULL, 0, video_download_pthread, (void*)(&i), 0, NULL);
         int ret = 0;
 #else
-        int ret = pthread_create(&vc_thread[i], NULL, video_download_pthread, thread_id + i);
+        int ret = pthread_create(&vc_thread[i], &attr, video_download_pthread, thread_id + i);
 #endif
         if (ret != 0) {
             cout << "pthread create failed" << endl;
             return -1;
         }
 
+        if(g_enc[i]){
 #ifdef WIN32
-        image_thread[i] = CreateThread(NULL, 0, image_process_pthread, (void*)(&i), 0, NULL);
+            image_thread[i] = CreateThread(NULL, 0, image_process_pthread, (void*)(&i), 0, NULL);
 #else
-        ret = pthread_create(&image_thread[i], NULL, image_process_pthread, thread_id + i);
+            ret = pthread_create(&image_thread[i], &attr, image_process_pthread, thread_id + i);
 #endif
-        if (ret != 0) {
-            cout << "pthread create failed" << endl;
-            return -1;
-        }
+            if (ret != 0) {
+                cout << "pthread create failed" << endl;
+                return -1;
+            }
 
 #ifdef WIN32
-        enc_thread[i] = CreateThread(NULL, 0, video_encoder_pthread, (void*)(&i), 0, NULL);
+            enc_thread[i] = CreateThread(NULL, 0, video_encoder_pthread, (void*)(&i), 0, NULL);
 #else
-        ret = pthread_create(&enc_thread[i], NULL, video_encoder_pthread, thread_id + i);
+            ret = pthread_create(&enc_thread[i], &attr, video_encoder_pthread, thread_id + i);
 #endif
-        if (ret != 0) {
-            cout << "pthread create failed" << endl;
-            return -1;
+            if (ret != 0) {
+                cout << "pthread create failed" << endl;
+                return -1;
+            }
         }
 #ifdef WIN32
         Sleep(1000);
 #else
-        sleep(1);
+        usleep(100000);
 #endif
     }
 #ifdef WIN32
@@ -817,12 +821,16 @@ int main(int argc, char **argv)
     for (int i = 0; i < thread_num; i++) {
 #ifdef WIN32
         WaitForSingleObject(vc_thread[i], INFINITE);
-        WaitForSingleObject(image_thread[i], INFINITE);
-		WaitForSingleObject(enc_thread[i], INFINITE);
+        if(g_enc[i]) {
+            WaitForSingleObject(image_thread[i], INFINITE);
+            WaitForSingleObject(enc_thread[i], INFINITE);
+        }
 #else
         pthread_join(vc_thread[i], NULL);
-        pthread_join(image_thread[i], NULL);
-		pthread_join(enc_thread[i], NULL);
+        if(g_enc[i]) {
+            pthread_join(image_thread[i], NULL);
+		    pthread_join(enc_thread[i], NULL);
+        }
 #endif
     }
 #ifdef WIN32

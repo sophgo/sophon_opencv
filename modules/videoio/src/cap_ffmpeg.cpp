@@ -98,7 +98,6 @@ public:
         return ffmpegCapture ? icvGrabFrame_FFMPEG_p(ffmpegCapture, buf, len_in, len_out)!=0 : false;
     }
 
-    // 差异比较大，可能于鏊调试下
     virtual bool retrieveFrame(int flag, cv::OutputArray frame) CV_OVERRIDE
     {
         unsigned char* data = 0;
@@ -189,10 +188,15 @@ public:
 
     int getCaptureDomain() const CV_OVERRIDE { return cv::CAP_FFMPEG; }
 
-    virtual void write(cv::InputArray image ) CV_OVERRIDE
+    virtual void write(cv::InputArray image) CV_OVERRIDE
     {
         if(!ffmpegWriter)
             return;
+        if(image.empty()){
+            ffmpegWriter->flush_writer();
+            return;
+        }
+
         CV_Assert(image.depth() == CV_8U || image.depth() == CV_16U);
 
         // if UMat, try GPU to GPU copy using OpenCL extensions
@@ -201,15 +205,18 @@ public:
                 return;
             }
         }
-
         icvWriteFrameByHd_FFMPEG_p(ffmpegWriter, image);
         // icvWriteFrameByHd_FFMPEG_p(ffmpegWriter, (const uchar*)image.getMat().ptr(), (int)image.step(), image.cols(), image.rows(), image.channels(), 0);
     }
-    virtual void write(cv::InputArray image, char *data, int *len ) CV_OVERRIDE
+    virtual void write(cv::InputArray image, char *data, int *len) CV_OVERRIDE
     {
         if(!ffmpegWriter)
             return;
 
+        if(image.empty()){
+            ffmpegWriter->flush_writer(data, len);
+            return;
+        }
         CV_Assert(image.depth() == CV_8U);
 
         icvWriteFrameByHdOutbuf_FFMPEG_p(ffmpegWriter, image, data, len);
@@ -219,6 +226,10 @@ public:
         if(!ffmpegWriter)
             return;
 
+        if(image.empty()){
+            ffmpegWriter->flush_writer(data, len);
+            return;
+        }
         CV_Assert(image.depth() == CV_8U);
 
         icvWriteFrameByHdOutbufRoi_FFMPEG_p(ffmpegWriter, image, data, len, roiinfo);

@@ -771,7 +771,7 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
 
     uint8_t *data = (uint8_t *)bm_mem_get_device_addr(*(fb->dma_buffer));
     int size = fb->dma_buffer->size;
- 
+
 #ifdef USING_SOC
     unsigned long long vaddr = 0;
     uint8_t *vddr = NULL;
@@ -1090,7 +1090,7 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
 #if 0
             static int abc= 0;
             bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
-            unsigned long long vmem  = 0; 
+            unsigned long long vmem  = 0;
             bm_mem_mmap_device_mem(handle, (info.framebuffer)->dma_buffer, &vmem);
             uint8_t* p_virt_addr2 = (uint8_t*)vmem;
             dump_jpu_framebuf((char*)"jpudec", p_virt_addr2,*(info.framebuffer), info.actual_frame_width, info.actual_frame_height, DUMP_OUT, FORMAT_420, abc++);
@@ -1509,7 +1509,7 @@ bool BMJpegDecoder::readData( Mat& img )
             close(DECODE_INIT);
             return false;
         }
-        
+
         if(BM_JPU_DEC_RETURN_CODE_OK != bm_jpu_dec_load(BM_CARD_ID( m_device_id )))
         {
             fprintf(stderr, "Error! dec load failed, device id = %d \n",m_device_id);
@@ -1549,7 +1549,7 @@ bool BMJpegDecoder::readData( Mat& img )
 
         BmJpuDecReturnCodes dec_ret;
         jpeg_decoder = NULL;
-        
+
         dec_ret = bm_jpu_jpeg_dec_open(&(jpeg_decoder), &open_params, 0);
         if (dec_ret != BM_JPU_DEC_RETURN_CODE_OK)
         {
@@ -1588,7 +1588,7 @@ bool BMJpegDecoder::readData( Mat& img )
             close(DECODE_FAILED);
             return false;
         }
-        
+
         /* Get some information about the the frame
          * Note that the info is only available after calling bm_jpu_jpeg_dec_decode() */
         bm_jpu_jpeg_dec_get_info(jpeg_decoder, &info);
@@ -1908,7 +1908,7 @@ bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, i
     /* The input frames come in external DMA memory */
     /* The input frames already come in DMA / physically contiguous memory,
      * so the encoder can read from them directly. */
-   
+
     wrapped_mem = bm_mem_from_device(luma_phy_addr, frame_total_size);
     framebuffer.dma_buffer = &wrapped_mem;
 
@@ -2101,7 +2101,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
      * it is typically more efficient to make sure the input frames
      * already come in DMA / physically contiguous memory, so the
      * encoder can read from them directly. */
-  
+
     framebuffer.dma_buffer = (bm_device_mem_t*)malloc(sizeof(bm_device_mem_t));
     bm_handle_t handle = bm_jpu_enc_get_bm_handle(m_device_id);
     bm_status_t bm_ret = bm_malloc_device_byte_heap_mask(handle, framebuffer.dma_buffer,
@@ -2151,7 +2151,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
 
     if (color_format == BM_JPU_COLOR_FORMAT_YUV400)
     {
-        csc_type = CSC_MAX_ENUM;
+        csc_type = CSC_FANCY_PbPr_BT601;
         algorithm = BMCV_INTER_LINEAR;
         input_fmt = FORMAT_GRAY;
         output_fmt = FORMAT_GRAY;

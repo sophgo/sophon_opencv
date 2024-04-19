@@ -47,7 +47,7 @@ bool pyopencv_to_safe(PyObject* obj, _Tp& value, const ArgInfo& info)
 template<typename T, class TEnable = void>  // TEnable is used for SFINAE checks
 struct PyOpenCV_Converter
 {
-    //static inline bool to(PyObject* obj, T& p, const ArgInfo& info);
+    static inline bool to(PyObject* obj, T& p, const ArgInfo& info);
     //static inline PyObject* from(const T& src);
 };
 
