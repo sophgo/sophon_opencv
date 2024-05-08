@@ -1880,12 +1880,6 @@ bool CvCapture_FFMPEG::retrieveFrame(int, cv::OutputArray image)
         !is_bm_image_codec(video_st->codec->codec_id))
         return retrieveFrameSoft(0, image);
 
-    if ((out_yuv > 0) && ((picture->data == NULL) || (picture->data[4] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
-        return false;
-    } else if ((out_yuv == 0) && ((picture->data == NULL) || (picture->data[0] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
-        return false;
-    }
-
     if (frame.height != picture->height) frame.height = picture->height;
     if (frame.width != picture->width) frame.width = picture->width;
 

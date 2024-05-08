@@ -347,11 +347,7 @@ void Mat::create(AVFrame *frame, int id)
       u->fd = v->fd;
     } else { // for AVFrame from ffmpeg
         u->addr = avAddr(4);
-        if (u->frame->buf[0] == NULL) {
-            u->size = 0;
-        } else {
-            u->size = u->frame->buf[0]->size;
-        }
+        u->size = u->frame->buf[0]->size;
         for (int i = 1; i < 3; i++){
             if (u->frame->buf[i]) {
                 bm_int64 int buf_size = labs(avAddr(4+i) - u->addr);
