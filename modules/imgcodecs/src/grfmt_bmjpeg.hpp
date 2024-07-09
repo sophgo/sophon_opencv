@@ -45,8 +45,7 @@
 
 #include "grfmt_base.hpp"
 #include "bitstrm.hpp"
-#include "bmjpuapi_jpeg.h"
-
+#include "bm_jpeg_interface.h"
 
 #ifndef USING_SOC
 #define MAX_RESOLUTION_W    (4096)
@@ -99,8 +98,8 @@ public:
     void  close();
     ImageEncoder newEncoder() const CV_OVERRIDE;
 private:
-    bool prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& img);
-    bool prepareDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& in_img, Mat& out_img, bm_device_mem_t &wrapped_mem);
+    bool prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuImageFormat image_format, const Mat& img);
+    bool prepareDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuImageFormat image_format, const Mat& in_img, Mat& out_img, bm_device_mem_t &wrapped_mem);
     int fillFrameBuffer(Mat& img, BmJpuFramebuffer& framebuffer);
     bool prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs_buffer_size, bool is_yuv_mat, const Mat& img, const std::vector<int>& params, void* file);
 protected:

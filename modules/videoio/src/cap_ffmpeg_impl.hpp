@@ -1807,7 +1807,7 @@ bool CvCapture_FFMPEG::grabFrame(char *buf, unsigned int len_in, unsigned int *l
 #else
         ret = avcodec_decode_video(&video_st->codec,picture, &got_picture,packet.data, packet.size);
 #endif
-        if(ret == -1){
+        if(ret == AVERROR_EXTERNAL){
             play_status = 2;
             std::cout << "avcodec decode maybe blocked, reconnect please!" << std::endl;
             break;
@@ -1879,6 +1879,12 @@ bool CvCapture_FFMPEG::retrieveFrame(int, cv::OutputArray image)
     if (!is_bm_video_codec(video_st->codec->codec_id) &&
         !is_bm_image_codec(video_st->codec->codec_id))
         return retrieveFrameSoft(0, image);
+
+    if ((out_yuv > 0) && ((picture->data == NULL) || (picture->data[4] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+        return false;
+    } else if ((out_yuv == 0) && ((picture->data == NULL) || (picture->data[0] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+        return false;
+    }
 
     if (frame.height != picture->height) frame.height = picture->height;
     if (frame.width != picture->width) frame.width = picture->width;

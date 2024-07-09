@@ -3,6 +3,22 @@ if(ANDROID)
   return()
 endif()
 
+if (${CMAKE_CXX_COMPILER_VERSION}  VERSION_GREATER  "13.0.0" AND ${CMAKE_HOST_SYSTEM_NAME} MATCHES "Linux" )
+set(ade_src_dir "${OpenCV_BINARY_DIR}/3rdparty/ade")
+set(ade_filename "v0.1.2c.zip")
+set(ade_subdir "ade-0.1.2c")
+set(ade_md5 "4e996f545f9dddf2348cf593cbb2726f")
+ocv_download(FILENAME ${ade_filename}
+             HASH ${ade_md5}
+             URL
+               "${OPENCV_ADE_URL}"
+               "$ENV{OPENCV_ADE_URL}"
+               "https://github.com/opencv/ade/archive/"
+             DESTINATION_DIR ${ade_src_dir}
+             ID ADE
+             STATUS res
+             UNPACK RELATIVE_URL)
+else()
 set(ade_src_dir "${OpenCV_BINARY_DIR}/3rdparty/ade")
 set(ade_filename "v0.1.1d.zip")
 set(ade_subdir "ade-0.1.1d")
@@ -17,6 +33,7 @@ ocv_download(FILENAME ${ade_filename}
              ID ADE
              STATUS res
              UNPACK RELATIVE_URL)
+endif()
 
 if (NOT res)
     return()

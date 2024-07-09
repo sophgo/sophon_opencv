@@ -1,13 +1,13 @@
-prefix=/usr/local
+prefix=/home/oem/opensource1/ffmpeg_install_soc
 exec_prefix=${prefix}
-libdir=/usr/local/lib
-includedir=/usr/local/include
+libdir=/home/oem/opensource1/ffmpeg_install_soc/lib
+includedir=/home/oem/opensource1/ffmpeg_install_soc/include
 
 Name: libavfilter
 Description: FFmpeg audio/video filtering library
-Version: 7.40.101-sophon-0.7.1
+Version: 7.40.101-sophon-
 Requires: 
-Requires.private: libswscale >= 5.3.100-sophon-0.7.1, libavformat >= 58.20.100-sophon-0.7.1, libavcodec >= 58.35.100-sophon-0.7.1, libswresample >= 3.3.100-sophon-0.7.1, libavutil >= 56.22.100-sophon-0.7.1
+Requires.private: libswscale >= 5.3.100-sophon-, libavformat >= 58.20.100-sophon-, libavcodec >= 58.35.100-sophon-, libswresample >= 3.3.100-sophon-, libavutil >= 56.22.100-sophon-
 Conflicts:
 Libs: -L${libdir}  -lavfilter 
 Libs.private: -pthread -lm -L../prebuilt/lib -lfreetype -lm

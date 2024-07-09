@@ -45,7 +45,7 @@
 
 #include "grfmt_base.hpp"
 #include "bitstrm.hpp"
-#include "bmjpuapi_jpeg.h"
+#include "bm_jpeg_interface.h"
 
 // JPU Jpeg codec
 namespace cv
@@ -93,7 +93,7 @@ public:
     ImageEncoder newEncoder() const CV_OVERRIDE;
 private:
     bool prepareExternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, const Mat& img, bm_device_mem_t &wrapped_dma_mem);
-    bool prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& img);
+    bool prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuImageFormat image_format, const Mat& img);
     bool prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs_buffer_size, bool is_yuv_mat, const Mat& img, const std::vector<int>& params, void* file);
 protected:
     bool  b_bmjpu_enc_load;
