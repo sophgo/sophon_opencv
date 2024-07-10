@@ -173,6 +173,7 @@ DWORD WINAPI videoWriteThread(void* arg){
                     static unsigned int roi_frame_nums = 0;
                     roi_frame_nums++;
                     CV_RoiInfo  roiinfo;;
+                    roiinfo.field = NULL;
 
                     if (strcmp(threadPara->codecType,"H264enc") ==0) {
                         int nums = (BM_ALIGN16(threadPara->imageRows) >> 4) * (BM_ALIGN16(threadPara->imageCols) >> 4);
@@ -227,6 +228,10 @@ DWORD WINAPI videoWriteThread(void* arg){
                         }
                     }
                     writer.write(*toEncImage,out_buf,&out_buf_len, &roiinfo);
+                    if (roiinfo.field != NULL) {
+                        free(roiinfo.field);
+                        roiinfo.field = NULL;
+                    }
                 }
                 else {
                     writer.write(*toEncImage,out_buf,&out_buf_len);

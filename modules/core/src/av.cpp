@@ -136,7 +136,21 @@ AVFrame *create(int height, int width, int color_format,
 {
     if (fd>=0 && (!plane_stride || !plane_size)) return NULL;
 
-    int step = (fd >= 0) ? plane_stride[0] : (((width + 63) >> 6) << 6);
+    int step = (fd >= 0) ? plane_stride[0] : (fd >= 0) ? plane_stride[0] : (((width + 63) >> 6) << 6);
+
+    unsigned int chipid;
+    bm_handle_t handle;
+    id = BM_CARD_ID(id);
+    int ret = bm_dev_request(&handle, id);
+    if (ret != BM_SUCCESS) {
+        av_log(NULL, AV_LOG_ERROR, "av Create bm handle failed. ret = %d\n", ret);
+        return NULL;
+    }
+    bm_get_chipid(handle, &chipid);
+    bm_dev_free(handle);
+    if(chipid == 0x1686){
+      step = (fd >= 0) ? plane_stride[0] : (((width + 31) >> 5) << 5);   // 32 alignment for 1684x
+    }
     int ylen = (fd >= 0) ? plane_size[0] : (((height + 15) >> 4) << 4) * step;
     int size[3], stride[3];
     int plane, hscale[3], wscale[3];
@@ -201,6 +215,21 @@ AVFrame *create(int height, int width, int id) // 420P
 {
   // 64 bytes alignment for vpp
   int step = (((width + 63) >> 6) << 6);
+
+  unsigned int chipid;
+
+  bm_handle_t handle;
+  id = BM_CARD_ID(id);
+  int ret = bm_dev_request(&handle, id);
+  if (ret != BM_SUCCESS) {
+      av_log(NULL, AV_LOG_ERROR, "av 420 Create bm handle failed. ret = %d\n", ret);
+      return NULL;
+  }
+  bm_get_chipid(handle, &chipid);
+  bm_dev_free(handle);
+  if(chipid == 0x1686)
+    step = (((width + 31) >> 5) << 5);
+
   int ylen = (((height + 15) >> 4) << 4) * step;
   int uvlen = ylen >> 2;
 

@@ -51,6 +51,7 @@ Compilation steps:
 
 ###
 #!/bin/bash
+
 PWD=$(pwd)
 
 echo $PWD
@@ -58,110 +59,101 @@ echo $PWD
 echo $PWD/../extern_lib/prebuilt/x86_64/python3.5/lib/libpython3.5m.so
 
 MM_TOP_DIR=$PWD/../extern_lib/
-
 MM_OUTPUT_DIR=$PWD/install
-
 OPENCV_PATH=$PWD/../
-
 OPENCV_INSTALL_PATH=$PWD/install
-
 CHIP=bm1684
-
 SUBTYPE=asic
-
-PRODUCTFORM=soc
-
+PRODUCTFORM=pcie
 OPENCV_CONTRIB_ENABLE_NONFREE=OFF
-
 BUILD_TYPE=release
 
-if [ $PRODUCTFORM != soc ]; then
-    HWACCEL_PATH=$PWD/../extern_lib/bm_hardware_accele/decode_x86_64
-    ENABLE_BMCPU=1
-    cmake -DHAVE_opencv_python3=ON -DBUILD_opencv_python3=ON \
-          -DPYTHON3_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/x86_64/python3.5/include/python3.5m \
-          -DPYTHON3_LIBRARIES=$MM_TOP_DIR/prebuilt/x86_64/python3.5/lib/libpython3.5m.so \
-          -DPYTHON3_EXECUTABLE=$MM_TOP_DIR/prebuilt/x86_64/python3.5/bin\
-          -DPYTHON3_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/x86_64/python3.5/dist-packages/numpy/core/include \
-          -DPYTHON3_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python \
-          -DHAVE_opencv_python2=ON -DBUILD_opencv_python2=ON \
-          -DPYTHON2_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/x86_64/python2.7/include/python2.7 \
-          -DPYTHON2_LIBRARIES=$MM_TOP_DIR/prebuilt/x86_64/python2.7/lib/libpython2.7.so \
-          -DPYTHON2_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/x86_64/python2.7/dist-packages/numpy/core/include \
-          -DPYTHON2_EXECUTABLE=$MM_TOP_DIR/prebuilt/x86_64/python2.7/bin\
-          -DPYTHON2_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python/python2 \
-          -DPYTHON_DEFAULT_EXECUTABLE=/usr/bin/python \
-          -DOPENCV_SKIP_PYTHON_LOADER=ON \
-          -DWITH_FFMPEG=ON -DWITH_GSTREAMER=OFF \
-          -DWITH_GTK=OFF -DWITH_1394=OFF -DWITH_V4L=ON \
-          -DWITH_CUDA=OFF -DWITH_OPENCL=OFF -DWITH_LAPACK=OFF \
-          -DWITH_TBB=ON -DBUILD_TBB=ON \
-          -DWITH_TIFF=ON -DBUILD_TIFF=ON \
-          -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
-          -DOPENCV_FORCE_3RDPARTY_BUILD=ON \
-          -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
-          -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
-          -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/pcie/libturbojpeg.a \
-          -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
-          -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/x86_64/lib/libfreetype.a \
-          -DFREETYPE_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/freetype2 \
-          -DHARFBUZZ_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/harfbuzz \
-          -DCMAKE_TOOLCHAIN_FILE=../platforms/linux/x86_64-gnu.toolchain.cmake \
-          -DCMAKE_INSTALL_PREFIX=$OPENCV_INSTALL_PATH \
-          -DCMAKE_HWACCEL_PATH=$HWACCEL_PATH \
-          -DCMAKE_MAKE_PROGRAM=make \
-          -DCHIP=${CHIP} \
-          -DSUBTYPE=${SUBTYPE} \
-          -DPRODUCTFORM=${PRODUCTFORM} \
-          -DENABLE_BMCPU=${ENABLE_BMCPU} \
-          -DOPENCV_EXTRA_MODULES_PATH=${OPENCV_CONTRIB_PATH} \
-          -DOPENCV_ENABLE_NONFREE=${OPENCV_CONTRIB_ENABLE_NONFREE} \
-          -DOPENCV_GENERATE_PKGCONFIG=ON \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-          -DABI_FLAG=${ABI_FLAG} ..
-
+if [ $PRODUCTFORM != soc ]; then 
+HWACCEL_PATH=$PWD/../extern_lib/bm_hardware_accele/decode_x86_64
+ENABLE_BMCPU=1
+cmake -DHAVE_opencv_python3=ON -DBUILD_opencv_python3=ON \
+    -DPYTHON3_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/x86_64/python3.5/include/python3.5m \
+    -DPYTHON3_LIBRARIES=$MM_TOP_DIR/prebuilt/x86_64/python3.5/lib/libpython3.5m.so \
+    -DPYTHON3_EXECUTABLE=$MM_TOP_DIR/prebuilt/x86_64/python3.5/bin \
+    -DPYTHON3_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/x86_64/python3.5/dist-packages/numpy/core/include \
+    -DPYTHON3_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python \
+    -DHAVE_opencv_python2=ON -DBUILD_opencv_python2=ON \
+    -DPYTHON2_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/x86_64/python2.7/include/python2.7 \
+    -DPYTHON2_LIBRARIES=$MM_TOP_DIR/prebuilt/x86_64/python2.7/lib/libpython2.7.so \
+    -DPYTHON2_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/x86_64/python2.7/dist-packages/numpy/core/include \
+    -DPYTHON2_EXECUTABLE=$MM_TOP_DIR/prebuilt/x86_64/python2.7/bin \
+    -DPYTHON2_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python/python2 \
+    -DPYTHON_DEFAULT_EXECUTABLE=/usr/bin/python \
+    -DOPENCV_SKIP_PYTHON_LOADER=ON \
+    -DWITH_FFMPEG=ON -DWITH_GSTREAMER=OFF \
+    -DWITH_GTK=OFF -DWITH_1394=OFF -DWITH_V4L=ON \
+    -DWITH_CUDA=OFF -DWITH_OPENCL=OFF -DWITH_LAPACK=OFF \
+    -DWITH_TBB=ON -DBUILD_TBB=ON \
+    -DWITH_TIFF=ON -DBUILD_TIFF=ON \
+    -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
+    -DOPENCV_FORCE_3RDPARTY_BUILD=ON \
+    -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
+    -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
+    -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/pcie/libturbojpeg.a \
+    -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
+    -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/x86_64/lib/libfreetype.a \
+    -DFREETYPE_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/freetype2 \
+    -DHARFBUZZ_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/harfbuzz \
+    -DCMAKE_TOOLCHAIN_FILE=../platforms/linux/x86_64-gnu.toolchain.cmake \
+    -DCMAKE_INSTALL_PREFIX=$OPENCV_INSTALL_PATH \
+    -DCMAKE_HWACCEL_PATH=$HWACCEL_PATH \
+    -DCMAKE_MAKE_PROGRAM=make \
+    -DCHIP=${CHIP} \
+    -DSUBTYPE=${SUBTYPE} \
+    -DPRODUCTFORM=${PRODUCTFORM} \
+    -DENABLE_BMCPU=${ENABLE_BMCPU} \
+    -DOPENCV_EXTRA_MODULES_PATH=${OPENCV_CONTRIB_PATH} \
+    -DOPENCV_ENABLE_NONFREE=${OPENCV_CONTRIB_ENABLE_NONFREE} \
+    -DOPENCV_GENERATE_PKGCONFIG=ON \
+    -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+    -DABI_FLAG=${ABI_FLAG} ..
 else
-    HWACCEL_PATH=$PWD/../extern_lib/bm_hardware_accele/decode_arm64
-    ENABLE_BMCPU=0
-    cmake -DHAVE_opencv_python3=ON -DBUILD_opencv_python3=ON \
-          -DPYTHON3_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/include/python3.5 \
-          -DPYTHON3_LIBRARIES=$MM_TOP_DIR/prebuilt/lib/libpython3.5m.so \
-          -DPYTHON3_EXECUTABLE=$MM_TOP_DIR/prebuilt/bin/python3 \
-          -DPYTHON3_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/lib/local/python3.5/dist-packages/numpy/core/include \
-          -DPYTHON3_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python \
-          -DHAVE_opencv_python2=ON -DBUILD_opencv_python2=ON \
-          -DPYTHON2_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/include/python2.7 \
-          -DPYTHON2_LIBRARIES=$MM_TOP_DIR/prebuilt/lib/libpython2.7.so \
-          -DPYTHON2_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/lib/local/python2.7/dist-packages/numpy/core/include \
-          -DPYTHON2_EXECUTABLE=$MM_TOP_DIR/prebuilt/bin/python2.7 \
-          -DPYTHON2_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python/python2 \
-          -DPYTHON_DEFAULT_EXECUTABLE=/usr/bin/python \
-          -DOPENCV_SKIP_PYTHON_LOADER=ON \
-          -DWITH_FFMPEG=ON -DWITH_GSTREAMER=OFF \
-          -DWITH_GTK=OFF -DWITH_1394=OFF -DWITH_V4L=ON \
-          -DWITH_CUDA=OFF -DWITH_OPENCL=OFF \
-          -DWITH_TBB=ON -DBUILD_TBB=ON \
-          -DWITH_TIFF=ON -DBUILD_TIFF=ON \
-          -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
-          -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
-          -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
-          -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/soc/libturbojpeg.a \
-          -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
-          -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/lib/libfreetype.a \
-          -DFREETYPE_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/freetype2 \
-          -DHARFBUZZ_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/harfbuzz \
-          -DCMAKE_TOOLCHAIN_FILE=../platforms/linux/aarch64-gnu.toolchain.cmake \
-          -DCMAKE_INSTALL_PREFIX=$MM_OUTPUT_DIR/opencv \
-          -DCMAKE_HWACCEL_PATH=$HWACCEL_PATH \
-          -DCMAKE_MAKE_PROGRAM=make \
-          -DENABLE_NEON=ON \
-          -DCHIP=${CHIP} \
-          -DSUBTYPE=${SUBTYPE} \
-          -DPRODUCTFORM=${PRODUCTFORM} \
-          -DENABLE_BMCPU=${ENABLE_BMCPU} \
-          -DOPENCV_EXTRA_MODULES_PATH=${OPENCV_CONTRIB_PATH} \
-          -DOPENCV_ENABLE_NONFREE=${OPENCV_CONTRIB_ENABLE_NONFREE} \
-          -DCMAKE_BUILD_TYPE=${BUILD_TYPE} ..
+HWACCEL_PATH=$PWD/../extern_lib/bm_hardware_accele/decode_arm64
+ENABLE_BMCPU=0
+cmake -DHAVE_opencv_python3=ON -DBUILD_opencv_python3=ON \
+    -DPYTHON3_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/include/python3.5 \
+    -DPYTHON3_LIBRARIES=$MM_TOP_DIR/prebuilt/lib/libpython3.5m.so \
+    -DPYTHON3_EXECUTABLE=$MM_TOP_DIR/prebuilt/bin/python3 \
+    -DPYTHON3_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/lib/local/python3.5/dist-packages/numpy/core/include \
+    -DPYTHON3_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python \
+    -DHAVE_opencv_python2=ON -DBUILD_opencv_python2=ON \
+    -DPYTHON2_INCLUDE_PATH=$MM_TOP_DIR/prebuilt/include/python2.7 \
+    -DPYTHON2_LIBRARIES=$MM_TOP_DIR/prebuilt/lib/libpython2.7.so \
+    -DPYTHON2_NUMPY_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/lib/local/python2.7/dist-packages/numpy/core/include \
+    -DPYTHON2_EXECUTABLE=$MM_TOP_DIR/prebuilt/bin/python2.7 \
+    -DPYTHON2_PACKAGES_PATH=$MM_OUTPUT_DIR/opencv-python/python2 \
+    -DPYTHON_DEFAULT_EXECUTABLE=/usr/bin/python \
+    -DOPENCV_SKIP_PYTHON_LOADER=ON \
+    -DWITH_FFMPEG=ON -DWITH_GSTREAMER=OFF \
+    -DWITH_GTK=OFF -DWITH_1394=OFF -DWITH_V4L=ON \
+    -DWITH_CUDA=OFF -DWITH_OPENCL=OFF \
+    -DWITH_TBB=ON -DBUILD_TBB=ON \
+    -DWITH_TIFF=ON -DBUILD_TIFF=ON \
+    -DWITH_JPEG=ON -DBUILD_JPEG=OFF \
+    -DFFMPEG_LIBRARY_DIRS=$HWACCEL_PATH/lib \
+    -DFFMPEG_INCLUDE_DIRS=$HWACCEL_PATH/include \
+    -DJPEG_LIBRARY=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/lib/soc/libturbojpeg.a \
+    -DJPEG_INCLUDE_DIR=$OPENCV_PATH/3rdparty/libjpeg-turbo/binary/include \
+    -DFREETYPE_LIBRARY=$MM_TOP_DIR/prebuilt/lib/libfreetype.a \
+    -DFREETYPE_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/freetype2 \
+    -DHARFBUZZ_INCLUDE_DIRS=$MM_TOP_DIR/prebuilt/include/harfbuzz \
+    -DCMAKE_TOOLCHAIN_FILE=../platforms/linux/aarch64-gnu.toolchain.cmake \
+    -DCMAKE_INSTALL_PREFIX=$MM_OUTPUT_DIR/opencv \
+    -DCMAKE_HWACCEL_PATH=$HWACCEL_PATH \
+    -DCMAKE_MAKE_PROGRAM=make \
+    -DENABLE_NEON=ON \
+    -DCHIP=${CHIP} \
+    -DSUBTYPE=${SUBTYPE} \
+    -DPRODUCTFORM=${PRODUCTFORM} \
+    -DENABLE_BMCPU=${ENABLE_BMCPU} \
+    -DOPENCV_EXTRA_MODULES_PATH=${OPENCV_CONTRIB_PATH} \
+    -DOPENCV_ENABLE_NONFREE=${OPENCV_CONTRIB_ENABLE_NONFREE} \
+    -DCMAKE_BUILD_TYPE=${BUILD_TYPE} .. 
 fi
 
  3、Make and install to OPENCV_INSTALL_PATH
@@ -184,6 +176,3 @@ This project is licensed under the Apache License Version 2.0. Please refere to 
 ## Contributing
 
 This project is maintained by Sophgo multimedia team. Welcome to submit codes and patches to us by email to yujing.shen@sophgo.com
-
-
-

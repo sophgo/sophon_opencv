@@ -681,7 +681,7 @@ static void av_buffer_release(void *opaque, uint8_t *data)
 {
     BmJpuJPEGDecoder *jpeg_decoder = (BmJpuJPEGDecoder *)opaque;
     UMatOpaque *jpeg_opaque;
-    
+
     if (!jpeg_decoder)
         return;
 
@@ -690,10 +690,10 @@ static void av_buffer_release(void *opaque, uint8_t *data)
         return;
 
     UMatData *u = (UMatData *)jpeg_opaque->data;
-   
+
 #ifdef USING_SOC
-    bm_handle_t handle = bm_jpu_get_handle(jpeg_decoder->device_index);
-    bm_status_t ret = bm_mem_unmap_device_mem(handle, u->origdata 
+    bm_handle_t handle = bm_jpu_dec_get_bm_handle(jpeg_decoder->device_index);
+    bm_status_t ret = bm_mem_unmap_device_mem(handle, u->origdata
                                              ,jpeg_decoder->raw_frame.framebuffer->dma_buffer->size);
     if (ret != BM_SUCCESS) {
         CV_Error(CV_HalMemErr, "unmap failed");
@@ -708,19 +708,13 @@ static void av_buffer_release(void *opaque, uint8_t *data)
      * so inform the decoder that it can reclaim it */
     bm_jpu_jpeg_dec_frame_finished(jpeg_decoder, jpeg_decoder->raw_frame.framebuffer);
     bm_jpu_jpeg_dec_close(jpeg_decoder);
-   
+
     if (jpeg_opaque) delete jpeg_opaque;
     if (u) delete u;
 }
 
 AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
 {
-    if (info.color_format == BM_JPU_COLOR_FORMAT_YUV422_VERTICAL)
-    {
-        fprintf(stderr, "format error!, the format is not supported! color_format = %d\n", info.color_format);
-        return NULL;
-    }
-
     MatAllocator *a = av::getAllocator();
     UMatData *u = new UMatData(a);
 
@@ -734,10 +728,10 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
 
     uint8_t *data = (uint8_t *)bm_mem_get_device_addr(*(fb->dma_buffer));
     int size = fb->dma_buffer->size;
- 
+
 #ifdef USING_SOC
     unsigned long long vaddr = 0;
-    bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+    bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
     bm_status_t ret =  bm_mem_mmap_device_mem(handle, fb->dma_buffer, &vaddr);
     if (ret != BM_SUCCESS) {
         CV_Error(CV_HalMemErr, "unmap failed");
@@ -774,13 +768,17 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
     f->linesize[4] = fb->y_stride;
     f->linesize[0] = fb->y_stride;
 
-    if (info.color_format == BM_JPU_COLOR_FORMAT_YUV420) {
+    if (info.image_format == BM_JPU_IMAGE_FORMAT_YUV420P ||
+        info.image_format == BM_JPU_IMAGE_FORMAT_NV12 ||
+        info.image_format == BM_JPU_IMAGE_FORMAT_NV21)
+    {
         f->data[5] = data + fb->cb_offset;
         f->data[1] = vddr + fb->cb_offset;
         f->linesize[5] = fb->cbcr_stride;
         f->linesize[1] = fb->cbcr_stride;
 
-        if (info.chroma_interleave) {
+        // TODO: support NV21
+        if (info.image_format != BM_JPU_IMAGE_FORMAT_YUV420P) {
             f->format = AV_PIX_FMT_NV12;
         } else {
             f->data[6] = data + fb->cr_offset;
@@ -791,13 +789,17 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
             f->format = AV_PIX_FMT_YUV420P;
         }
     }
-    else if (info.color_format == BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL)
+    else if (info.image_format == BM_JPU_IMAGE_FORMAT_YUV422P ||
+        info.image_format == BM_JPU_IMAGE_FORMAT_NV16 ||
+        info.image_format == BM_JPU_IMAGE_FORMAT_NV61)
     {
         f->data[5] = data + fb->cb_offset;
         f->data[1] = vddr + fb->cb_offset;
         f->linesize[5] = fb->cbcr_stride;
         f->linesize[1] = fb->cbcr_stride;
-        if (info.chroma_interleave) {
+
+        // TODO: support NV61
+        if (info.image_format != BM_JPU_IMAGE_FORMAT_YUV422P) {
             f->format = AV_PIX_FMT_NV16;
         } else {
             f->data[6] = data + fb->cr_offset;
@@ -807,8 +809,8 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
             f->format = AV_PIX_FMT_YUV422P;
         }
     }
-    else if (info.color_format == BM_JPU_COLOR_FORMAT_YUV444 ||
-             info.color_format == BM_JPU_COLOR_FORMAT_RGB)
+    else if (info.image_format == BM_JPU_IMAGE_FORMAT_YUV444P ||
+             info.image_format == BM_JPU_IMAGE_FORMAT_RGB)
     {
         f->data[5] = data + fb->cb_offset;
         f->data[1] = vddr + fb->cb_offset;
@@ -820,12 +822,12 @@ AVFrame *BMJpegDecoder::fillAVFrame(BmJpuJPEGDecInfo& info)
         f->linesize[6] = fb->cbcr_stride;
         f->linesize[2] = fb->cbcr_stride;
 
-        if (info.color_format == BM_JPU_COLOR_FORMAT_YUV444)
+        if (info.image_format == BM_JPU_IMAGE_FORMAT_YUV444P)
             f->format = AV_PIX_FMT_YUV444P;
         else
             f->format = AV_PIX_FMT_GBRP;   // reuse this GBRP as RGBP
     }
-    else if (info.color_format == BM_JPU_COLOR_FORMAT_YUV400)
+    else if (info.image_format == BM_JPU_IMAGE_FORMAT_GRAY)
     {
         f->format = AV_PIX_FMT_GRAY8;
     }
@@ -1028,34 +1030,40 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
         bm_image_format_ext src_fmt;
         csc_type_t csc_type = CSC_YPbPr2RGB_BT601;
 
-        if(info.color_format == BM_JPU_COLOR_FORMAT_YUV420)
+        if (info.image_format == BM_JPU_IMAGE_FORMAT_YUV420P ||
+            info.image_format == BM_JPU_IMAGE_FORMAT_NV12 ||
+            info.image_format == BM_JPU_IMAGE_FORMAT_NV21)
         {
-            if(info.chroma_interleave == 1){
+            if (info.image_format == BM_JPU_IMAGE_FORMAT_NV12) {
                 src_fmt = FORMAT_NV12;
                 src_stride[1] = src_stride[0];
 
             }
-            else{
+            else if (info.image_format == BM_JPU_IMAGE_FORMAT_NV21) {
+                src_fmt = FORMAT_NV21;
+                src_stride[1] = src_stride[0];
+            }
+            else {
                 src_fmt = FORMAT_YUV420P;
                 src_stride[1] = src_stride[0]/2;
                 src_stride[2] = src_stride[1];
-              }
+            }
 
 #if 0
             static int abc= 0;
-            bm_handle_t handle = bm_jpu_get_handle(m_device_id);
-            unsigned long long vmem  = 0; 
+            bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
+            unsigned long long vmem  = 0;
             bm_mem_mmap_device_mem(handle, (info.framebuffer)->dma_buffer, &vmem);
             uint8_t* p_virt_addr2 = (uint8_t*)vmem;
             dump_jpu_framebuf((char*)"jpudec", p_virt_addr2,*(info.framebuffer), info.actual_frame_width, info.actual_frame_height, DUMP_OUT, FORMAT_420, abc++);
             bm_mem_unmap_device_mem(handle, (void *)p_virt_addr2, (info.framebuffer)->dma_buffer->size);
 #endif
         }
-        else if(info.color_format == BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL)
+        else if(info.image_format == BM_JPU_IMAGE_FORMAT_YUV422P)
         {
             /* Map the DMA buffer of the decoded picture */
 
-            bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+            bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
             unsigned long long vmem  = 0;
             bm_status_t ret = bm_mem_mmap_device_mem(handle, (info.framebuffer)->dma_buffer, &vmem);
             uint8_t* p_virt_addr = (uint8_t*)vmem;
@@ -1088,26 +1096,26 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
             src_stride[1] = src_stride[0]/2;
             src_stride[2] = src_stride[1];
         }
-        else if(info.color_format == BM_JPU_COLOR_FORMAT_YUV444)
+        else if(info.image_format == BM_JPU_IMAGE_FORMAT_YUV444P)
         {
             src_fmt = FORMAT_YUV444P;
             src_stride[1] = src_stride[0];
             src_stride[2] = src_stride[1];
         }
-        else if(info.color_format == BM_JPU_COLOR_FORMAT_RGB)
+        else if(info.image_format == BM_JPU_IMAGE_FORMAT_RGB)
         {
             src_fmt = FORMAT_RGBP_SEPARATE;
             csc_type = CSC_MAX_ENUM;
             src_stride[1] = src_stride[0];
             src_stride[2] = src_stride[1];
         }
-        else if(info.color_format == BM_JPU_COLOR_FORMAT_YUV400)
+        else if(info.image_format == BM_JPU_IMAGE_FORMAT_GRAY)
         {
             /* Map the DMA buffer of the decoded picture */
             unsigned long long vmem = 0;
-            bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+            bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
             bm_mem_mmap_device_mem(handle, (info.framebuffer)->dma_buffer, &vmem);
-            uint8_t* p_virt_addr = (uint8_t*)vmem; 
+            uint8_t* p_virt_addr = (uint8_t*)vmem;
             uint8_t* dst_rgb24 = img.data;
             int dst_stride_rgb24 = img.step[0];
             int width  = info.actual_frame_width;
@@ -1179,7 +1187,7 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
 #ifdef USING_SOC
 
         unsigned long long vmem = 0;
-        bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+        bm_handle_t handle = bm_jpu_dec_get_bm_handle(m_device_id);
         bm_mem_mmap_device_mem(handle, (info.framebuffer)->dma_buffer, &vmem);
         uint8_t* p_virt_addr = (uint8_t*)vmem;
 
@@ -1187,7 +1195,7 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
         libyuv::CopyPlane(addr_y, info.y_stride,
                              img.data, img.step[0],
                              info.actual_frame_width, info.actual_frame_height);
-       
+
         bm_mem_unmap_device_mem(handle,p_virt_addr, (info.framebuffer)->dma_buffer->size);
         if (!img.allocator) img.allocator = hal::getAllocator();
         img.allocator->invalidate(img.u, img.u->size);
@@ -1463,11 +1471,13 @@ bool BMJpegDecoder::readData( Mat& img )
         /* Open the JPEG decoder */
         BmJpuDecOpenParams open_params;
         memset(&open_params, 0, sizeof(BmJpuDecOpenParams));
-        open_params.frame_width  = 0;
-        open_params.frame_height = 0;
+        open_params.min_frame_width = 0;
+        open_params.min_frame_height = 0;
+        open_params.max_frame_width = 0;
+        open_params.max_frame_height = 0;
         open_params.device_index = img.card;
 
-        open_params.chroma_interleave = 0;  //set all format to planar mode
+        open_params.chroma_interleave = BM_JPU_CHROMA_FORMAT_CBCR_SEPARATED;  //set all format to planar mode
         open_params.scale_ratio = iScale;
         open_params.bs_buffer_size = (size+BS_MASK)&(~BS_MASK); // in unit of 16k
 #define JPU_PAGE_UNIT_SIZE 256 /* each page unit of jpu is 256 byte */
@@ -1496,7 +1506,7 @@ bool BMJpegDecoder::readData( Mat& img )
 #endif
 
         /* Perform the actual JPEG decoding */
-        dec_ret = bm_jpu_jpeg_dec_decode(jpeg_decoder, buf, size);
+        dec_ret = bm_jpu_jpeg_dec_decode(jpeg_decoder, buf, size, 0, 0);
         if (dec_ret != BM_JPU_DEC_RETURN_CODE_OK)
         {
             //hw dec failed retry software
@@ -1533,10 +1543,8 @@ bool BMJpegDecoder::readData( Mat& img )
                info.y_size, info.cbcr_size, info.cbcr_size);
         printf("Y/Cb/Cr offset: %u/%u/%u\n",
                info.y_offset, info.cb_offset, info.cr_offset);
-        printf("color format: %s\n",
-               bm_jpu_color_format_string(info.color_format));
-        printf("chroma interleave: %d\n",
-               info.chroma_interleave);
+        printf("image format: %s\n",
+               bm_jpu_image_format_string(info.image_format));
 #endif
 
         if (info.framebuffer == NULL)
@@ -1558,7 +1566,7 @@ bool BMJpegDecoder::readData( Mat& img )
 
         if(cinfo->jpeg_color_space == JCS_RGB)
         {
-            info.color_format = BM_JPU_COLOR_FORMAT_RGB;
+            info.image_format = BM_JPU_IMAGE_FORMAT_RGB;
             m_yuv_output = 0;
         }
 
@@ -1753,7 +1761,7 @@ int BMJpegEncoder::fillFrameBuffer(Mat& img, BmJpuFramebuffer &framebuffer)
 
     return frame_total_size;
 }
-bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, int height, BmJpuColorFormat color_format,
+bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, int height, BmJpuImageFormat image_format,
                     const Mat& in_img, Mat& out_img, bm_device_mem_t &wrapped_mem)
 {
     int frame_total_size;
@@ -1798,10 +1806,10 @@ bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, i
     else
     {
 #ifdef USING_SOC
-        prepareInternalDMABuffer(framebuffer, width, height, color_format, bgr_img);
+        prepareInternalDMABuffer(framebuffer, width, height, image_format, bgr_img);
         return true;
 #else
-        if (color_format == BM_JPU_COLOR_FORMAT_YUV400){
+        if (image_format == BM_JPU_IMAGE_FORMAT_GRAY){
           out_img = bgr_img;
         }else{   // bgr format
           AVFrame *f = cv::av::create(height, width, m_device_id);  // yuv420 data
@@ -1849,9 +1857,8 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
                                           void* file)
 {
     int width, height, channels;
-    int chroma_interleave = 0;
     int raw_size;
-    BmJpuColorFormat out_color_format  = BM_JPU_COLOR_FORMAT_YUV420;
+    BmJpuImageFormat out_image_format = BM_JPU_IMAGE_FORMAT_YUV420P;
     if(!is_yuv_mat)
     {
         width  = img.cols;
@@ -1865,7 +1872,7 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
         }
         if (channels == 1)
         {
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            out_image_format = BM_JPU_IMAGE_FORMAT_GRAY;
             raw_size = width * height;
         }
     }
@@ -1879,34 +1886,32 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
         switch (format)
         {
         case AV_PIX_FMT_NV12:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV420;
-            chroma_interleave = 1;
+            out_image_format = BM_JPU_IMAGE_FORMAT_NV12;
             raw_size = raw_size * 3/2;
             break;
         case AV_PIX_FMT_NV16:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
-            chroma_interleave = 1;
+            out_image_format = BM_JPU_IMAGE_FORMAT_NV16;
             raw_size = raw_size * 2;
             break;
         case AV_PIX_FMT_YUV444P:
         case AV_PIX_FMT_GBRP:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV444;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV444P;
             raw_size = raw_size * 3;
             break;
         case AV_PIX_FMT_GRAY8:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            out_image_format = BM_JPU_IMAGE_FORMAT_GRAY;
             raw_size = raw_size * 1;
             break;
         case AV_PIX_FMT_YUV420P:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV420;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV420P;
             raw_size = raw_size * 3/2;
             break;
         case AV_PIX_FMT_YUV422P:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV422P;
             raw_size = raw_size * 2;
             break;
         default:
-            fprintf(stderr, "Error! Unsupported encoded color_format %d.\n", format);
+            fprintf(stderr, "Error! Unsupported encoded image_format %d.\n", format);
             return false;
         }
     }
@@ -1933,15 +1938,14 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
     bs_buffer_size = raw_size/min_ratio;
     /* bitstream buffer size in unit of 16k */
     bs_buffer_size = (bs_buffer_size+BS_MASK)&(~BS_MASK);
-    if (bs_buffer_size >= 16*1023*1024)
-        bs_buffer_size = 16*1023*1024;
+    // if (bs_buffer_size >= 16*1023*1024)
+    //     bs_buffer_size = 16*1023*1024;
 
     memset(&encParams, 0x0, sizeof(encParams));
     encParams.frame_width    = width;
     encParams.frame_height   = height;
     encParams.quality_factor = quality;
-    encParams.color_format   = out_color_format;
-    encParams.chroma_interleave = chroma_interleave;
+    encParams.image_format   = out_image_format;
     encParams.acquire_output_buffer = NULL;
     encParams.finish_output_buffer  = NULL;
     if (file)
@@ -1966,17 +1970,38 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
 }
 
 #ifndef _WIN32
-bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& img)
+bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuImageFormat image_format, const Mat& img)
 {
     /* Initialize the input framebuffer */
     int framebuffer_alignment = 16;
-    int chroma_interleave = 0; // 0: I420; 1: NV12 : 2 NV21P_1_2n
+    BmJpuColorFormat color_format = BM_JPU_COLOR_FORMAT_YUV420;
+    BmJpuChromaFormat chroma_interleave = BM_JPU_CHROMA_FORMAT_CBCR_SEPARATED; // 0: I420; 1: NV12 : 2 NV21P_1_2n
     BmJpuFramebufferSizes calculated_sizes;
     int ret;
-    ret = bm_jpu_calc_framebuffer_sizes(color_format,
-                                  width, height,
+
+    // TODO: why chroma_interleave is always 0?
+    switch (image_format) {
+        case BM_JPU_IMAGE_FORMAT_YUV420P:
+        case BM_JPU_IMAGE_FORMAT_NV12:
+        case BM_JPU_IMAGE_FORMAT_NV21:
+            color_format = BM_JPU_COLOR_FORMAT_YUV420;
+            break;
+        case BM_JPU_IMAGE_FORMAT_YUV422P:
+        case BM_JPU_IMAGE_FORMAT_NV16:
+        case BM_JPU_IMAGE_FORMAT_NV61:
+            color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
+            break;
+        case BM_JPU_IMAGE_FORMAT_YUV444P:
+            color_format = BM_JPU_COLOR_FORMAT_YUV444;
+            break;
+        case BM_JPU_IMAGE_FORMAT_GRAY:
+            color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            break;
+    }
+
+    ret = bm_jpu_calc_framebuffer_sizes(width, height,
                                   framebuffer_alignment,
-                                  chroma_interleave,
+                                  image_format,
                                   &calculated_sizes);
     if (ret != 0) {
         fprintf(stderr, "Error! Failed to open bm_jpu_calc_framebuffer_sizes()\n");
@@ -1995,9 +2020,9 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
      * it is typically more efficient to make sure the input frames
      * already come in DMA / physically contiguous memory, so the
      * encoder can read from them directly. */
-  
+
     framebuffer.dma_buffer = (bm_device_mem_t*)malloc(sizeof(bm_device_mem_t));
-    bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+    bm_handle_t handle = bm_jpu_enc_get_bm_handle(m_device_id);
     bm_status_t bm_ret =  bm_malloc_device_byte_heap_mask(handle, framebuffer.dma_buffer,
                                                 HEAP_1_2, calculated_sizes.total_size);
     if (bm_ret != BM_SUCCESS) {
@@ -2062,7 +2087,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
         int src_stride_rgb24 = img.step[0];
 
         unsigned long long vmem = 0;
-        bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+        bm_handle_t handle = bm_jpu_enc_get_bm_handle(m_device_id);
 
         bm_mem_mmap_device_mem(handle, framebuffer.dma_buffer, &vmem);
         uint8_t* p_virt_addr = (uint8_t*)vmem;
@@ -2098,7 +2123,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
                             width, 1);
         }
         /* Flush cache to the DMA buffer */
- 
+
         bm_mem_flush_device_mem(handle, framebuffer.dma_buffer);
 
         bm_mem_unmap_device_mem(handle, p_virt_addr, framebuffer.dma_buffer->size);
@@ -2106,7 +2131,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
 #if 0
     static int ab= 0;
     unsigned long long vmem = 0;
-    bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+    bm_handle_t handle = bm_jpu_enc_get_bm_handle(m_device_id);
     bm_mem_mmap_device_mem(handle, framebuffer.dma_buffer, &vmem);
     uint8_t* p_virt_addr2 = (uint8_t*)vmem;
     dump_jpu_framebuf((char*)"jpuenc", p_virt_addr2, framebuffer, width, height, DUMP_OUT, FORMAT_420, ab++);
@@ -2167,7 +2192,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     int bs_buffer_size;
     BmJpuFramebuffer framebuffer;
-    
+
     bm_device_mem_t wrapped_mem;
     BmJpuJPEGEncParams enc_params; /* Set up the encoding parameters */
 
@@ -2177,7 +2202,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     /* Open BM JPEG encoder */
     BmJpuEncReturnCodes enc_ret;
-    enc_ret = bm_jpu_jpeg_enc_open(&(jpeg_encoder), bs_buffer_size, BM_CARD_ID( m_device_id ));
+    enc_ret = bm_jpu_jpeg_enc_open(&(jpeg_encoder), 0, bs_buffer_size, BM_CARD_ID( m_device_id ));
     if (enc_ret != BM_JPU_ENC_RETURN_CODE_OK)
     {
         fprintf(stderr, "Error! Failed to open bm_jpu_jpeg_enc_open() :  %s\n",
@@ -2186,7 +2211,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
         return false;
     }
 
-    if(!prepareDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, enc_params.color_format, img, out_img, wrapped_mem))
+    if(!prepareDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, enc_params.image_format, img, out_img, wrapped_mem))
         return false;
 
     /* Do the actual encoding */
@@ -2195,10 +2220,10 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     /* The framebuffer's DMA buffer isn't needed anymore, since we just
      * did the encoding, so deallocate it */
-    
+
 #ifdef USING_SOC
     if(!(img.avOK())){
-        bm_handle_t handle = bm_jpu_get_handle(m_device_id);
+        bm_handle_t handle = bm_jpu_enc_get_bm_handle(m_device_id);
         if (framebuffer.dma_buffer != NULL) {
             bm_free_device(handle, *(framebuffer.dma_buffer));
             free(framebuffer.dma_buffer);
