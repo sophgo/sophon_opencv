@@ -1,5 +1,7 @@
 #include "precomp.hpp"
 
+#define MAX_CARD_NUMS 128
+
 namespace cv { namespace av {
 
 class AVFrameAllocator : public MatAllocator
@@ -130,13 +132,38 @@ int get_scale_and_plane(int color_format, int wscale[], int hscale[])
 	return plane;
 }
 
+int getChipId(unsigned int *chipid, int id)
+{
+  static unsigned int av_chipid[MAX_CARD_NUMS] = {0};
+  if (av_chipid[id] == 0) {
+    bm_handle_t handle;
+    id = BM_CARD_ID(id);
+    int ret = bm_dev_request(&handle, id);
+    if (ret != BM_SUCCESS) {
+        av_log(NULL, AV_LOG_ERROR, "av 420 Create bm handle failed. ret = %d\n", ret);
+        return ret;
+    }
+    bm_get_chipid(handle, &av_chipid[id]);
+    bm_dev_free(handle);
+  }
+  *chipid = av_chipid[id];
+  return 0;
+}
+
 AVFrame *create(int height, int width, int color_format,
                 void* data, bm_int64 addr, int fd, int* plane_stride,
                 int* plane_size, int color_space, int color_range, int id)
 {
     if (fd>=0 && (!plane_stride || !plane_size)) return NULL;
 
-    int step = (fd >= 0) ? plane_stride[0] : (((width + 63) >> 6) << 6);
+    int step = (fd >= 0) ? plane_stride[0] : (fd >= 0) ? plane_stride[0] : (((width + 63) >> 6) << 6);
+
+    unsigned int chipid;
+    if (getChipId(&chipid, id) != BM_SUCCESS)
+      return NULL;
+    if(chipid == 0x1686){
+      step = (fd >= 0) ? plane_stride[0] : (((width + 31) >> 5) << 5);   // 32 alignment for 1684x
+    }
     int ylen = (fd >= 0) ? plane_size[0] : (((height + 15) >> 4) << 4) * step;
     int size[3], stride[3];
     int plane, hscale[3], wscale[3];
@@ -201,6 +228,13 @@ AVFrame *create(int height, int width, int id) // 420P
 {
   // 64 bytes alignment for vpp
   int step = (((width + 63) >> 6) << 6);
+
+  unsigned int chipid;
+  if (getChipId(&chipid, id) != BM_SUCCESS)
+    return NULL;
+  if(chipid == 0x1686)
+    step = (((width + 31) >> 5) << 5);
+
   int ylen = (((height + 15) >> 4) << 4) * step;
   int uvlen = ylen >> 2;
 

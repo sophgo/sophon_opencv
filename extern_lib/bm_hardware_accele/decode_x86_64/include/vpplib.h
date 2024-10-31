@@ -186,13 +186,13 @@ typedef struct tagRGBQUAD{
 extern int vpp_level;
 
 #ifdef VPP_MSG
-#define VppErr(msg, ... )   if (vpp_level & VPP_MASK_ERR)   { printf("[ERR] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
-#define VppWarn(msg, ... )  if (vpp_level & VPP_MASK_WARN)  { printf("[WARN] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
-#define VppInfo(msg, ...)   if (vpp_level & VPP_MASK_INFO)  { printf("[INFO] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
-#define VppDbg(msg, ...)    if (vpp_level & VPP_MASK_DBG)   { printf("[DBG] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
-#define VppTrace(msg, ...)  if (vpp_level & VPP_MASK_TRACE) { printf("[TRACE] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
+#define VppErr(msg, ... )   if (vpp_level & VPP_MASK_ERR)   { printf("[ERR] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
+#define VppWarn(msg, ... )  if (vpp_level & VPP_MASK_WARN)  { printf("[WARN] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
+#define VppInfo(msg, ...)   if (vpp_level & VPP_MASK_INFO)  { printf("[INFO] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
+#define VppDbg(msg, ...)    if (vpp_level & VPP_MASK_DBG)   { printf("[DBG] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
+#define VppTrace(msg, ...)  if (vpp_level & VPP_MASK_TRACE) { printf("[TRACE] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); }
 #else
-#define VppErr(msg, ... )   if (vpp_level & VPP_MASK_ERR)   { printf("[ERR] %s = %d, "msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); abort();}
+#define VppErr(msg, ... )   if (vpp_level & VPP_MASK_ERR)   { printf("[ERR] %s = %d, " msg, __FUNCTION__, __LINE__, ## __VA_ARGS__); abort();}
 #define VppWarn(msg, ...)
 #define VppInfo(msg, ...)
 #define VppDbg(msg, ...)

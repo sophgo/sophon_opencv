@@ -347,7 +347,11 @@ void Mat::create(AVFrame *frame, int id)
       u->fd = v->fd;
     } else { // for AVFrame from ffmpeg
         u->addr = avAddr(4);
-        u->size = u->frame->buf[0]->size;
+        if (u->frame->buf[0] == NULL) {
+            u->size = 0;
+        } else {
+            u->size = u->frame->buf[0]->size;
+        }
         for (int i = 1; i < 3; i++){
             if (u->frame->buf[i]) {
                 bm_int64 int buf_size = labs(avAddr(4+i) - u->addr);
@@ -383,7 +387,6 @@ void Mat::create(int d, const int* _sizes, int _type, int id)
     CV_Assert(0 <= d && d <= CV_MAX_DIM && _sizes);
     _type = CV_MAT_TYPE(_type);
     card = (card > 0 && !id) ? card : id;
-
     if( data && (d == dims || (d == 1 && dims <= 2)) && _type == type() )
     {
         if( d == 2 && rows == _sizes[0] && cols == _sizes[1] )
@@ -418,7 +421,7 @@ void Mat::create(int d, const int* _sizes, int _type, int id)
 #endif
 #ifdef USING_SOC
 #if !defined(ENABLE_BMCPU)
-        if (dims == 2 && (_type == CV_8UC3 || _type == CV_32FC3 /*|| _type == CV_8UC1*/ || _type == CV_32FC1) && size[0] >= 16 && size[1] >= 16)
+        if ( dims == 2 && (_type == CV_8UC3 || _type == CV_32FC3 /*|| _type == CV_8UC1*/ || _type == CV_32FC1) && size[0] >= 16 && size[1] >= 16)
             a0 = hal::getAllocator();
 #endif
 #else

@@ -6,7 +6,7 @@ namespace cv{
 #define OCV_BMCPU_ALIGN(x, align)   (((x) + ((align)-1)) & ~((align)-1))
 
 #define BMCPU_LOG(console, formats, ...) \
-        fprintf(console, "[%s:%d->%s]" formats, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+        fprintf(console, "[line:%d->%s]" formats, __LINE__, __func__, ##__VA_ARGS__)
 
 
 class CV_EXPORTS BMCpuSender{

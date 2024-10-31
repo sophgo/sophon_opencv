@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #endif
+#define MAX_CARD_NUMS 128
 
 namespace cv { namespace hal {
 
@@ -18,6 +19,24 @@ typedef enum {
 };
 
 #ifndef WIN32
+
+int getChipId(unsigned int *chipid, int id)
+{
+  static unsigned int hal_chipid[MAX_CARD_NUMS] = {0};
+  if (hal_chipid[id] == 0) {
+    bm_handle_t handle;
+    id = BM_CARD_ID(id);
+    int ret = bm_dev_request(&handle, id);
+    if (ret != BM_SUCCESS) {
+        av_log(NULL, AV_LOG_ERROR, "av 420 Create bm handle failed. ret = %d\n", ret);
+        return ret;
+    }
+    bm_get_chipid(handle, &hal_chipid[id]);
+    bm_dev_free(handle);
+  }
+  *chipid = hal_chipid[id];
+  return 0;
+}
 
 class IONAllocator : public MatAllocator
 {
@@ -41,10 +60,20 @@ public:
   {
     step[1] = CV_ELEM_SIZE(type);
     step[0] = CV_ELEM_SIZE(type) * sizes[1];
+// #ifdef HAVE_BMCV
+//     bm_get_chipid(bmcv::getCard(id),&chipid);
+// #endif
+    //Disable 64-bit alignment for 1684x with respect to step\
 
+    unsigned int chipid;
+    if (getChipId(&chipid, id) != BM_SUCCESS)
+      return NULL;
     if (CV_MAT_DEPTH(type) == CV_8U && sizes[0] > 1 && sizes[1] > 1) {
-      step[0] = (step[0] + (64-1)) & (~(64-1));
-    }
+      if (chipid == 0x1684 )
+        step[0] = (step[0] + 63) & (~63);
+      else
+        step[0] = (step[0] + 31) & (~31);
+      }
 
     size_t total = step[0] * sizes[0];
 
