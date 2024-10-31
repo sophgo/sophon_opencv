@@ -1181,8 +1181,10 @@ bool BMJpegDecoder::readData( Mat& img )
         /* Open the JPEG decoder */
         BmJpuDecOpenParams open_params;
         memset(&open_params, 0, sizeof(BmJpuDecOpenParams));
-        open_params.frame_width  = 0;
-        open_params.frame_height = 0;
+        open_params.min_frame_width = 0;
+        open_params.min_frame_height = 0;
+        open_params.max_frame_width = 0;
+        open_params.max_frame_height = 0;
         open_params.device_index = DEV_ID;
         if(!m_yuv_output)
             open_params.chroma_interleave = 0; // 0: non-interleave
@@ -1216,7 +1218,7 @@ bool BMJpegDecoder::readData( Mat& img )
 #endif
 
         /* Perform the actual JPEG decoding */
-        dec_ret = bm_jpu_jpeg_dec_decode(jpeg_decoder, buf, size);
+        dec_ret = bm_jpu_jpeg_dec_decode(jpeg_decoder, buf, size, 0, 0);
         if (dec_ret != BM_JPU_DEC_RETURN_CODE_OK)
         {
             fprintf(stderr, "could not decode this JPEG image : %s\n",
@@ -1446,12 +1448,37 @@ bool BMJpegEncoder::prepareExternalDMABuffer(BmJpuFramebuffer &framebuffer, int 
     return true;
 }
 
-bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuColorFormat color_format, const Mat& img)
+bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int width, int height, BmJpuImageFormat image_format, const Mat& img)
 {
     /* Initialize the input framebuffer */
     int framebuffer_alignment = 16;
-    int chroma_interleave = 0; // 0: I420; 1: NV12 : 2 NV21
+    BmJpuChromaFormat chroma_interleave = BM_JPU_CHROMA_FORMAT_CBCR_SEPARATED; // 0: I420; 1: NV12 : 2 NV21
+    BmJpuColorFormat color_format;
     BmJpuFramebufferSizes calculated_sizes;
+
+    // TODO: why chroma_interleave is always 0
+    switch (image_format) {
+        case BM_JPU_IMAGE_FORMAT_YUV420P:
+        case BM_JPU_IMAGE_FORMAT_NV12:
+        case BM_JPU_IMAGE_FORMAT_NV21:
+            color_format = BM_JPU_COLOR_FORMAT_YUV420;
+            break;
+        case BM_JPU_IMAGE_FORMAT_YUV422P:
+        case BM_JPU_IMAGE_FORMAT_NV16:
+        case BM_JPU_IMAGE_FORMAT_NV61:
+            color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
+            break;
+        case BM_JPU_IMAGE_FORMAT_YUV444P:
+            color_format = BM_JPU_COLOR_FORMAT_YUV444;
+            break;
+        case BM_JPU_IMAGE_FORMAT_GRAY:
+            color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            break;
+        default:
+            color_format = BM_JPU_COLOR_FORMAT_YUV420;
+            break;
+    }
+
     bm_jpu_calc_framebuffer_sizes(color_format,
                                   width, height,
                                   framebuffer_alignment,
@@ -1571,8 +1598,7 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
                                           void* file)
 {
     int width, height, channels;
-    int chroma_interleave = 0;
-    BmJpuColorFormat out_color_format  = BM_JPU_COLOR_FORMAT_YUV420;
+    BmJpuImageFormat out_image_format = BM_JPU_IMAGE_FORMAT_YUV420P;
     if(!is_yuv_mat)
     {
         width  = img.cols;
@@ -1585,7 +1611,7 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
         }
         if (channels == 1)
         {
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            out_image_format = BM_JPU_IMAGE_FORMAT_GRAY;
         }
     }
     else
@@ -1597,25 +1623,23 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
         switch (format)
         {
         case AV_PIX_FMT_NV12:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV420;
-            chroma_interleave = 1;
+            out_image_format = BM_JPU_IMAGE_FORMAT_NV12;
             break;
         case AV_PIX_FMT_NV16:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
-            chroma_interleave = 1;
+            out_image_format = BM_JPU_IMAGE_FORMAT_NV16;
             break;
         case AV_PIX_FMT_YUV444P:
         case AV_PIX_FMT_GBRP:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV444;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV444P;
             break;
         case AV_PIX_FMT_GRAY8:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV400;
+            out_image_format = BM_JPU_IMAGE_FORMAT_GRAY;
             break;
         case AV_PIX_FMT_YUV420P:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV420;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV420P;
             break;
         case AV_PIX_FMT_YUV422P:
-            out_color_format = BM_JPU_COLOR_FORMAT_YUV422_HORIZONTAL;
+            out_image_format = BM_JPU_IMAGE_FORMAT_YUV422P;
             break;
         default:
             fprintf(stderr, "Error! Unsupported encoded color_format %d.\n", format);
@@ -1646,15 +1670,14 @@ bool BMJpegEncoder::prepareEncInputParams(BmJpuJPEGEncParams& encParams, int& bs
     bs_buffer_size = raw_size/min_ratio;
     /* bitstream buffer size in unit of 16k */
     bs_buffer_size = (bs_buffer_size+BS_MASK)&(~BS_MASK);
-    if (bs_buffer_size >= 16*1023*1024)
-        bs_buffer_size = 16*1023*1024;
+    // if (bs_buffer_size >= 16*1023*1024)
+    //     bs_buffer_size = 16*1023*1024;
 
     memset(&encParams, 0x0, sizeof(encParams));
     encParams.frame_width    = width;
     encParams.frame_height   = height;
     encParams.quality_factor = quality;
-    encParams.color_format   = out_color_format;
-    encParams.chroma_interleave = chroma_interleave;
+    encParams.image_format = out_image_format;
     encParams.acquire_output_buffer = NULL;
     encParams.finish_output_buffer  = NULL;
     if (file)
@@ -1722,7 +1745,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     /* Open BM JPEG encoder */
     BmJpuEncReturnCodes enc_ret;
-    enc_ret = bm_jpu_jpeg_enc_open(&(jpeg_encoder), NULL, bs_buffer_size, DEV_ID);
+    enc_ret = bm_jpu_jpeg_enc_open(&(jpeg_encoder), 0, bs_buffer_size, DEV_ID);
     if (enc_ret != BM_JPU_ENC_RETURN_CODE_OK)
     {
         fprintf(stderr, "Error! Failed to open bm_jpu_jpeg_enc_open() :  %s\n",
@@ -1733,7 +1756,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 
     if(!b_yuv_mat)
     {
-        if(!prepareInternalDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, enc_params.color_format, img))
+        if(!prepareInternalDMABuffer(framebuffer, enc_params.frame_width, enc_params.frame_height, enc_params.image_format, img))
             return false;
     }
     else
