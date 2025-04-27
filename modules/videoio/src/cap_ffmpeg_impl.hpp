@@ -833,6 +833,17 @@ void * av_inputs::internal_input_thread(void *arg)
             t->pkt_list_set_err_recv(0);    //clear rec_err flag when receive recovers.
             prev_rec_err = 0;
         }
+
+        if (packet.size <= 0){
+            _opencv_ffmpeg_av_packet_unref (&packet);
+#ifdef WIN32
+            Sleep(10);
+#else
+            usleep(10000);
+#endif
+            continue;
+        }
+
         ret = t->pkt_list_packet_send(&packet);
         if (ret < 0)
         {

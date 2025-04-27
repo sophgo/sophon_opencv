@@ -136,7 +136,7 @@ static void test_video(const char *url)
   bmcv::print(frame, true);
 
   Mat m;
-  bmcv::toMAT(frame, m, false);
+  bmcv::toMAT(frame, m, true);
   imwrite("video_in.png", m);
 
   Rect rt0(0, 0, 1920, 1080);
