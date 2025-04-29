@@ -32,7 +32,7 @@ private:
 
 
 namespace vpp {
-
+void vpp_parameter_dump(struct vpp_batch *batch);
 static void crop_internal(InputArray src, std::vector<Rect>& loca, InputOutputArray dst);
 static void resize_internal(InputArray src, InputOutputArray dst);
 static void border_internal(InputArray src, int top, int bottom, int left, int right, OutputArray dst);
@@ -266,7 +266,7 @@ bool IsVPPConverterEnabled()
     settinglock.unlock();
     return false;
 }
-
+#if defined(ION_CACHE) && defined(VPP_BM1682)
 /* for src Mat data is aligned with stride -> vpp u / v data is aligned with stride/2 */
 static void alignWithHalfStride(uchar* uv, int stride, int width, int uvheight)
 {
@@ -282,6 +282,7 @@ static void alignWithHalfStride(uchar* uv, int stride, int width, int uvheight)
         }
     }
 }
+#endif
 
  /* for dst in vpp u / v data is aligned with stride/2 -> Mat data is aligned with stride */
 #if 0
@@ -936,7 +937,7 @@ static void crop_internal(InputArray src, std::vector<Rect>& loca, InputOutputAr
     }
 
 #if (defined VPP_BM1880) || (defined VPP_BM1684)
-    for (int i = 0; i < loca.size(); i++) {
+    for (size_t i = 0; i < loca.size(); i++) {
         CV_Assert((loca[i].x <= src_cols[i]) && (loca[i].y <= src_rows[i]));
         CV_Assert(((loca[i].x + loca[i].width) <= src_cols[i]) && ((loca[i].y + loca[i].height) <= src_rows[i]));
         CV_Assert((loca[i].width >= MIN_RESOLUTION_W_LINEAR) && (loca[i].height >= MIN_RESOLUTION_H_LINEAR));

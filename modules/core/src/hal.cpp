@@ -11,7 +11,7 @@
 
 namespace cv { namespace hal {
 
-typedef enum {
+enum {
   HEAP_TPU = 0,
   HEAP_VPP = 1,
   HEAP_VPU = 2,
@@ -77,8 +77,8 @@ public:
 
     size_t total = step[0] * sizes[0];
 
-    int fd;
-    bm_uint64 addr;
+    int fd = 0;
+    bm_uint64 addr = 0;
     void* data = data0 ? data0 : ionMalloc(total, id, &addr, &fd);
     if (!data) return NULL;
 
@@ -219,7 +219,7 @@ private:
       return -1;
     }
 
-    id = (id > heap_query.cnt)?heap_query.cnt:id;
+    id = (id > static_cast<int>(heap_query.cnt))?static_cast<int>(heap_query.cnt):id;
 
     heap_data = (struct ion_heap_data*)calloc(heap_query.cnt, sizeof(struct ion_heap_data));
     if (heap_data == NULL) {
@@ -235,7 +235,7 @@ private:
     }
 
     heap_id = heap_query.cnt;
-    for(int i = 0;i < heap_query.cnt;i++) {
+    for(int i = 0;i < static_cast<int>(heap_query.cnt);i++) {
       if ((heap_data[i].type == type) && (strcmp(heap_data[i].name, ion_name[id]) == 0)) {
         heap_id = heap_data[i].heap_id;
         break;
@@ -245,7 +245,7 @@ private:
       }
     }
 
-    if (heap_id == heap_query.cnt)
+    if (heap_id == static_cast<int>(heap_query.cnt))
       heap_id = -1;
 
     free(heap_data);
@@ -264,7 +264,7 @@ private:
     allocData.flags = ION_FLAG_CACHED;
 
     int bm_card_heap = BM_CARD_HEAP(id);
-    int heap_id_arry[HEAP_MAX] = {0};
+    // int heap_id_arry[HEAP_MAX] = {0};
     int ion_alloc_success = 0;
     if (bm_card_heap == 0) {
         bm_card_heap = (1 << HEAP_VPP) | (1 << HEAP_VPU);
@@ -378,7 +378,7 @@ public:
     size_t total = step[0] * sizes[0];
     bm_handle_t hid = bmcv::getCard(id);
 
-    bm_uint64 addr;
+    bm_uint64 addr = 0;
     bm_device_mem_t mem;
     memset(&mem, 0, sizeof(bm_device_mem_t));
     if (!data0)

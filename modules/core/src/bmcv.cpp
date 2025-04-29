@@ -534,8 +534,8 @@ bm_status_t toMAT(bm_image *image, Mat &m, bool update, csc_type_t csc)
   bm_status_t ret;
   bm_handle_t handle = bm_image_get_handle(image);
 
-  uint len;
-  bm_device_mem_t mem;
+  // uint len;
+  // bm_device_mem_t mem;
 
   int id = bm_get_devid(handle);
   if (m.card) id = BM_MAKEFLAG(0, BM_CARD_HEAP(m.card), id);
@@ -715,7 +715,7 @@ bm_status_t convert(Mat &m, std::vector<Rect> &vrt, std::vector<Size> &vsz, std:
         csc_type_t csc, csc_matrix_t *matrix, bmcv_resize_algorithm algorithm)
 {
   if (!m.u || !m.u->addr) {printf("Memory allocated by user, no device memory assigned. Not support BMCV!\n"); return BM_NOT_SUPPORTED;}
-  bm_status_t ret;
+  bm_status_t ret = BM_SUCCESS;
   bm_handle_t handle = m.u->hid ? m.u->hid : getCard();
 
   CV_Assert(vrt.size() == vsz.size());

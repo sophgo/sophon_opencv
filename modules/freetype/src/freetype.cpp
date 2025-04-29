@@ -464,7 +464,7 @@ void FreeType2Impl::putTextBitmapBlendYUV(
         const uint8_t *mask = NULL;
         mask = glyph->bitmap.buffer;
         int islastrow = 0;
-        for(int m=0; m<glyph->bitmap.rows; m++){
+        for(unsigned int m=0; m<glyph->bitmap.rows; m++){
             if(m == (glyph->bitmap.rows-1)){
                 islastrow = 1;
             }
@@ -693,7 +693,7 @@ void FreeType2Impl::putTextBitmapMono(
     Mat dst = _img.getMat();
     hb_buffer_t *hb_buffer = hb_buffer_create ();
     CV_Assert( hb_buffer != NULL );
-    uchar color_yuv[4];
+    uchar color_yuv[4] = {0};
     if(dst.avOK()){
 #ifdef HAVE_BMCV
         bmcv::downloadMat(dst);

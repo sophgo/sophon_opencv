@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
         int w, h, ret;
         ret = sscanf(argv[arg_idx], "%dx%d", &w, &h);
         arg_idx += 1;
-        if (ret != 2 || w > 4096 || h > 4096) {
+        if (ret != 2 || w > 8192 || h > 8192) {
             cout << "ret: " << ret << ", width: " << w << ", height: " << h << endl;
             cout << "width or height wrong. please check!" << endl;
             cap.release();

@@ -233,9 +233,9 @@ public:
 
         Mat card = Mat::zeros(LDR_SIZE, 1, CV_32FCC);
         for(size_t i = 0; i < images.size(); i++) {
-           for (size_t row = 0; row < images[i].rows; row++){
+           for (int row = 0; row < images[i].rows; row++){
                uchar *ptr = images[i].ptr(row);
-               for(size_t pos = 0; pos < images[i].cols; pos++) {
+               for(int pos = 0; pos < images[i].cols; pos++) {
                    for(int c = 0; c < channels; c++, ptr++) {
                        card.at<Vec3f>(*ptr)[c] += 1;
                    }
@@ -252,10 +252,10 @@ public:
 
             Mat new_response = Mat::zeros(LDR_SIZE, 1, CV_32FC3);
             for(size_t i = 0; i < images.size(); i++) {
-                for (size_t row = 0; row < images[i].rows; row++){
+                for (int row = 0; row < images[i].rows; row++){
                     uchar *ptr = images[i].ptr(row);
                     float* rad_ptr = radiance.ptr<float>(row);
-                    for(size_t pos = 0; pos < images[i].cols; pos++) {
+                    for(int pos = 0; pos < images[i].cols; pos++) {
                         for(int c = 0; c < channels; c++, ptr++, rad_ptr++) {
                             new_response.at<Vec3f>(*ptr)[c] += times.at<float>((int)i) * *rad_ptr;
                         }

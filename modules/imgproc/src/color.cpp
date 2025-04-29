@@ -276,9 +276,8 @@ void cvtColor( InputArray _src, OutputArray _dst, int code, int dcn )
                return;
         }*/
     }
-#endif
-
 softcvt:
+#endif
     switch( code )
     {
         case COLOR_BGR2BGRA: case COLOR_RGB2BGRA: case COLOR_BGRA2BGR:

@@ -38,11 +38,11 @@ int main(int argc, char **argv)
     Mat src0;
     src0.allocator = hal::getAllocator();
     src0.create(h+256, w+256, CV_8UC1);
-    printf("data: %p 0x%lx\n", src0.data, src0.u->addr);
+    printf("data: %p 0x%llx\n", src0.data, src0.u->addr);
     Mat src1;
     src1.allocator = hal::getAllocator();
     src1.create(h, w, CV_8UC1);
-    printf("data: %p 0x%lx\n", src1.data, src1.u->addr);
+    printf("data: %p 0x%llx\n", src1.data, src1.u->addr);
 
     FILE *fp0 = fopen(argv[5], "rb");
     fseek(fp0, 0, SEEK_END);
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     Mat dst = vpp::iplImageToMat(&img, mode);
 #endif
 
-    printf("data: %p 0x%lx\n", dst.data, dst.u->addr);
+    printf("data: %p 0x%llx\n", dst.data, dst.u->addr);
     imwrite(imageName1, dst);
 #else
     printf("only support for arm\n");
