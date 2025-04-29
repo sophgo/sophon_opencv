@@ -33,20 +33,6 @@ static void alignWithStride(uchar* uv, int stride, int width, int uvheight)
         }
     }
 }
-static void alignWithHalfStride(uchar* uv, int stride, int width, int uvheight)
-{
-    if (stride/2 <= width/2 || stride%2 != 0)
-        return;
-
-    int halfStride = stride / 2;
-    int halfSWidth = width / 2;
-
-    for(int j = 0; j < uvheight; j++) {
-        for(int i = halfSWidth-1; i >= 0; i--) {
-            *(uv + j * stride + halfStride + i) = *(uv + j * stride + halfSWidth + i);
-        }
-    }
-}
 
 int main(int argc, char **argv)
 {

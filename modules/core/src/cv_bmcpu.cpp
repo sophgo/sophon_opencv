@@ -279,7 +279,6 @@ BMCpuSender::BMCpuSender(int dev_id, int size)
     :_buffer(NULL), _param_byte_size(0), _buffer_size(0),
      _device_id(-1), _map_vaddr(NULL), _handle(NULL), _process_handle(0)
 {
-    bm_status_t ret;
 
     _dev_mem.size = 0;
 
@@ -303,6 +302,7 @@ BMCpuSender::BMCpuSender(int dev_id, int size)
 #if BMCPU_PROFILING
     int64_t start = getTickCount();
 #endif
+    bm_status_t ret;
     ret = bm_malloc_device_byte(_handle, &_dev_mem, size);
     if (ret != BM_SUCCESS) {
         BMCPU_LOG(stdout, "BMCpuSender device %d malloc device mem error!\n", dev_id);

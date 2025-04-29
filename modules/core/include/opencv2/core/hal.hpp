@@ -8,7 +8,8 @@
 namespace cv { namespace hal {
 
 CV_EXPORTS MatAllocator* getAllocator();
-
+CV_EXPORTS MatAllocator* getPCIAllocator();
+CV_EXPORTS MatAllocator* getIONAllocator();
 }}
 
 #endif

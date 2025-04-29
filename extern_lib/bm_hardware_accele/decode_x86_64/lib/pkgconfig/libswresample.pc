@@ -5,9 +5,9 @@ includedir=/usr/local/include
 
 Name: libswresample
 Description: FFmpeg audio resampling library
-Version: 3.3.100-sophon-0.12.0
+Version: 3.3.100-sophon-0.13.0
 Requires: 
-Requires.private: libavutil >= 56.22.100-sophon-0.12.0
+Requires.private: libavutil >= 56.22.100-sophon-0.13.0
 Conflicts:
 Libs: -L${libdir}  -lswresample 
 Libs.private: -lm

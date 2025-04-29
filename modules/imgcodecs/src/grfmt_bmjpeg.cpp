@@ -393,7 +393,7 @@ static void bmjpu_setup_logging(void)
 
 /////////////////////// BMJpegDecoder ///////////////////
 BMJpegDecoder::BMJpegDecoder()
-:jpeg_decoder(NULL),m_vpp_fd(0),m_device_id(0)
+:jpeg_decoder(NULL), m_device_id(0), m_vpp_fd(0)
 {
     m_signature = "\xFF\xD8\xFF";
     m_state = NULL;
@@ -1021,8 +1021,6 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
             img.create(info.actual_frame_height, info.actual_frame_width, CV_8UC3, m_device_id);
         }
 
-        bm_jpu_phys_addr_t p_phys_addr = bm_mem_get_device_addr(*((info.framebuffer)->dma_buffer));
-
         int src_stride[4] = {0}, dst_stride[4] = {0};
         src_stride[0] = info.y_stride;
         dst_stride[0] = img.step[0];
@@ -1090,7 +1088,7 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
             bm_mem_flush_device_mem(handle, (info.framebuffer)->dma_buffer);
 
             /* Unmap the DMA buffer of the decoded picture */
-           
+
             bm_mem_unmap_device_mem(handle, p_virt_addr,(info.framebuffer)->dma_buffer->size);
             src_fmt = FORMAT_YUV420P;
             src_stride[1] = src_stride[0]/2;
@@ -1133,7 +1131,8 @@ int BMJpegDecoder::outputMat(Mat& img, BmJpuJPEGDecInfo &info)
         }
         img.allocator->invalidate(img.u, img.u->size); // cache is not flushed when input is physical address
 #ifdef HAVE_BMCV
-          CV_Assert(BM_SUCCESS == dec_convert(img, info.actual_frame_height, info.actual_frame_width, p_phys_addr, info.cb_offset, info.cr_offset, src_stride, dst_stride, src_fmt, csc_type));
+        bm_jpu_phys_addr_t p_phys_addr = bm_mem_get_device_addr(*((info.framebuffer)->dma_buffer));
+        CV_Assert(BM_SUCCESS == dec_convert(img, info.actual_frame_height, info.actual_frame_width, p_phys_addr, info.cb_offset, info.cr_offset, src_stride, dst_stride, src_fmt, csc_type));
 #endif
 
 #else
@@ -1338,7 +1337,7 @@ bool BMJpegDecoder::readData( Mat& img )
 
     jpeg_decompress_struct* cinfo = &((JpegState*)m_state)->cinfo;
     JpegErrorMgr* jerr = &((JpegState*)m_state)->jerr;
-    JSAMPARRAY buffer = 0;
+    // JSAMPARRAY buffer = 0;
 
     int ret = setjmp(jerr->setjmp_buffer);
     if (ret)
@@ -1446,7 +1445,7 @@ bool BMJpegDecoder::readData( Mat& img )
             close(DECODE_INIT);
             return false;
         }
-        
+
         if(BM_JPU_DEC_RETURN_CODE_OK != bm_jpu_dec_load(BM_CARD_ID( m_device_id )))
         {
             fprintf(stderr, "Error! dec load failed, device id = %d \n",m_device_id);
@@ -1455,7 +1454,7 @@ bool BMJpegDecoder::readData( Mat& img )
             m_src_data = NULL;
             return false;
         }
-       
+
 #ifndef _WIN32 //FIXME
         m_vpp_fd = g_vpp_fd[BM_CARD_ID( m_device_id )];
         assert(m_vpp_fd > 0);
@@ -1488,7 +1487,7 @@ bool BMJpegDecoder::readData( Mat& img )
 
         BmJpuDecReturnCodes dec_ret;
         jpeg_decoder = NULL;
-        
+
         dec_ret = bm_jpu_jpeg_dec_open(&(jpeg_decoder), &open_params, 0);
         if (dec_ret != BM_JPU_DEC_RETURN_CODE_OK)
         {
@@ -1527,7 +1526,7 @@ bool BMJpegDecoder::readData( Mat& img )
             close(DECODE_FAILED);
             return false;
         }
-        
+
         /* Get some information about the the frame
          * Note that the info is only available after calling bm_jpu_jpeg_dec_decode() */
         bm_jpu_jpeg_dec_get_info(jpeg_decoder, &info);
@@ -1806,8 +1805,8 @@ bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, i
     else
     {
 #ifdef USING_SOC
-        prepareInternalDMABuffer(framebuffer, width, height, image_format, bgr_img);
-        return true;
+        bool ret = prepareInternalDMABuffer(framebuffer, width, height, image_format, bgr_img);
+        return ret;
 #else
         if (image_format == BM_JPU_IMAGE_FORMAT_GRAY){
           out_img = bgr_img;
@@ -1845,7 +1844,7 @@ bool BMJpegEncoder::prepareDMABuffer(BmJpuFramebuffer &framebuffer, int width, i
     /* The input frames come in external DMA memory */
     /* The input frames already come in DMA / physically contiguous memory,
      * so the encoder can read from them directly. */
-   
+
     wrapped_mem = bm_mem_from_device(luma_phy_addr, frame_total_size);
     framebuffer.dma_buffer = &wrapped_mem;
 
@@ -2027,7 +2026,7 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
                                                 HEAP_1_2, calculated_sizes.total_size);
     if (bm_ret != BM_SUCCESS) {
       printf("malloc device memory size = %d failed, ret = %d\n", calculated_sizes.total_size, ret);
-      return -1;
+      return false;
     }
     if (framebuffer.dma_buffer == NULL)
     {
@@ -2051,9 +2050,6 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
 #endif
 
     bm_jpu_phys_addr_t p_phys_addr = bm_mem_get_device_addr(*(framebuffer.dma_buffer));
-    unsigned long output_device_addr0 = (unsigned long)(p_phys_addr + framebuffer.y_offset);
-    unsigned long output_device_addr1 = (unsigned long)(p_phys_addr + framebuffer.cb_offset);
-    unsigned long output_device_addr2 = (unsigned long)(p_phys_addr + framebuffer.cr_offset);
 
 
     int dst_stride[4] = {0};
@@ -2078,6 +2074,9 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
         dst_stride[2] = dst_stride[1];
     }
 #ifdef HAVE_BMCV
+    unsigned long output_device_addr0 = (unsigned long)(p_phys_addr + framebuffer.y_offset);
+    unsigned long output_device_addr1 = (unsigned long)(p_phys_addr + framebuffer.cb_offset);
+    unsigned long output_device_addr2 = (unsigned long)(p_phys_addr + framebuffer.cr_offset);
     CV_Assert(BM_SUCCESS == enc_convert(img, output_device_addr0, output_device_addr1, output_device_addr2, dst_stride, height, width, input_fmt, output_fmt, algorithm, csc_type));
 #endif
 
@@ -2148,7 +2147,6 @@ bool BMJpegEncoder::prepareInternalDMABuffer(BmJpuFramebuffer& framebuffer, int 
 bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
 {
     (void)(params);
-    int width, height, channels;
     Mat out_img;
     m_last_error.clear();
 

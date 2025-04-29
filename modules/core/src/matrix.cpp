@@ -355,8 +355,8 @@ void Mat::create(AVFrame *frame, int id)
         for (int i = 1; i < 3; i++){
             if (u->frame->buf[i]) {
                 bm_int64 int buf_size = labs(avAddr(4+i) - u->addr);
-                if (buf_size > u->size + 1024*1024){ // 128*4k = 512k, 2plane 1M video
-                    printf("plane %d addr 0x%lx size %ld next addr 0x%lx\n", i, u->addr, u->size, avAddr(4+i));
+                if ((size_t)buf_size > u->size + 1024*1024){ // 128*4k = 512k, 2plane 1M video
+                    printf("plane %d addr 0x%llx size %ld next addr 0x%llx\n", i, u->addr, u->size, avAddr(4+i));
                     printf("MAT Warning: AVFrame device address is discontinuous. Function is limited!\n");
                     u->size = 0;
                     break;
@@ -524,7 +524,7 @@ void Mat::create(int d, const int *_sizes, int total, int _type, const size_t* _
         u = a->allocate(total, _data, addr, fd, card);
         if (!u){
             printf("MAT Allocated Err: ");
-            printf("total = %d _data = 0x%p addr = 0x%lx fd = %d id = %d\n", total, _data, addr, fd, card);
+            printf("total = %d _data = 0x%p addr = 0x%llx fd = %d id = %d\n", total, _data, addr, fd, card);
             release();
         }
         CV_Assert(u != 0);

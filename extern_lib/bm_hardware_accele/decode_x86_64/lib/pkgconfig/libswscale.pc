@@ -5,9 +5,9 @@ includedir=/usr/local/include
 
 Name: libswscale
 Description: FFmpeg image rescaling library
-Version: 5.3.100-sophon-0.12.0
+Version: 5.3.100-sophon-0.13.0
 Requires: 
-Requires.private: libavutil >= 56.22.100-sophon-0.12.0
+Requires.private: libavutil >= 56.22.100-sophon-0.13.0
 Conflicts:
 Libs: -L${libdir}  -lswscale 
 Libs.private: -lm

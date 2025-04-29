@@ -584,7 +584,7 @@ void cvtColorBGR2BGR( InputArray _src, OutputArray _dst, int dcn, bool swapb, in
     else
 #endif
         hal::cvtBGRtoBGR(h.src.data, h.src.step, h.dst.data, h.dst.step, h.src.cols, h.src.rows,
-                         h.depth, h.scn, dcn, swapb);
+                            h.depth, h.scn, dcn, swapb);
 }
 
 void cvtColorBGR25x5( InputArray _src, OutputArray _dst, bool swapb, int gbits, int code)

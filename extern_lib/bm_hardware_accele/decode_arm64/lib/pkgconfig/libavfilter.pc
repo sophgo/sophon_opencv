@@ -5,9 +5,9 @@ includedir=/usr/local/include
 
 Name: libavfilter
 Description: FFmpeg audio/video filtering library
-Version: 7.40.101-sophon-0.12.0
+Version: 7.40.101-sophon-0.13.0
 Requires: 
-Requires.private: libswscale >= 5.3.100-sophon-0.12.0, libavformat >= 58.20.100-sophon-0.12.0, libavcodec >= 58.35.100-sophon-0.12.0, libswresample >= 3.3.100-sophon-0.12.0, libavutil >= 56.22.100-sophon-0.12.0
+Requires.private: libswscale >= 5.3.100-sophon-0.13.0, libavformat >= 58.20.100-sophon-0.13.0, libavcodec >= 58.35.100-sophon-0.13.0, libswresample >= 3.3.100-sophon-0.13.0, libavutil >= 56.22.100-sophon-0.13.0
 Conflicts:
 Libs: -L${libdir}  -lavfilter 
 Libs.private: -pthread -lm -L../prebuilt/lib -lfreetype -lm

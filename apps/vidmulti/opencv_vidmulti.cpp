@@ -87,7 +87,7 @@ int  kbhit(void);
 #endif
 void signal_handler(int signum);
 void register_signal_handler(void);
-
+void print_trace (void);
 #ifndef WIN32
 int kbhit (void)
 {
@@ -215,7 +215,7 @@ void* stat_pthread(void *arg)
 #else
         sleep(INTERVAL);
 #endif
-        
+
         if (dis_mode == 1) {
             for (int i = 0; i < thread_num; i++) {
                 if (i == 0)
@@ -578,7 +578,7 @@ void *video_download_pthread(void * arg)
 #endif
 
         count[id]++;
-		
+
         if ((reopen_flag==1)&&(count[id] % 400 == 0)){
             cap->release();
             cap->open(g_filename[id], cv::CAP_ANY, g_card[id]);
