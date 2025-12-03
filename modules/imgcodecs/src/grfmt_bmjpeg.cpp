@@ -413,7 +413,6 @@ BMJpegDecoder::BMJpegDecoder()
 BMJpegDecoder::~BMJpegDecoder()
 {
     close(DECODE_INIT);
-    bm_jpu_dec_unload(BM_CARD_ID(m_device_id));
 }
 
 void  BMJpegDecoder::close(int decode_status)
@@ -424,6 +423,7 @@ void  BMJpegDecoder::close(int decode_status)
     {
         bm_jpu_jpeg_dec_close(jpeg_decoder);
         jpeg_decoder = NULL;
+        bm_jpu_dec_unload(BM_CARD_ID(m_device_id));
     }
 #endif
     // for Other
@@ -708,6 +708,7 @@ static void av_buffer_release(void *opaque, uint8_t *data)
      * so inform the decoder that it can reclaim it */
     bm_jpu_jpeg_dec_frame_finished(jpeg_decoder, jpeg_decoder->raw_frame.framebuffer);
     bm_jpu_jpeg_dec_close(jpeg_decoder);
+    bm_jpu_dec_unload(jpeg_decoder->device_index);
 
     if (jpeg_opaque) delete jpeg_opaque;
     if (u) delete u;
@@ -1497,6 +1498,7 @@ bool BMJpegDecoder::readData( Mat& img )
                 free(m_src_data);
             m_src_data = NULL;
             close(DECODE_FAILED);
+            bm_jpu_dec_unload(BM_CARD_ID(m_device_id));
             return false;
         }
 
@@ -1604,7 +1606,6 @@ BMJpegEncoder::BMJpegEncoder()
 BMJpegEncoder::~BMJpegEncoder()
 {
     close();
-    bm_jpu_enc_unload(BM_CARD_ID( m_device_id ));
 }
 
 ImageEncoder BMJpegEncoder::newEncoder() const
@@ -1619,6 +1620,7 @@ void BMJpegEncoder::close()
     {
         bm_jpu_jpeg_enc_close(jpeg_encoder);
         jpeg_encoder = NULL;
+        bm_jpu_enc_unload(BM_CARD_ID(m_device_id));
     }
 }
 
@@ -2206,6 +2208,7 @@ bool BMJpegEncoder::write(const Mat& img, const std::vector<int>& params)
         fprintf(stderr, "Error! Failed to open bm_jpu_jpeg_enc_open() :  %s\n",
                 bm_jpu_enc_error_string(enc_ret));
         close();
+        bm_jpu_enc_unload(BM_CARD_ID(m_device_id));
         return false;
     }
 

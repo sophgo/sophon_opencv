@@ -249,7 +249,7 @@ DWORD WINAPI videoWriteThread(void* arg){
             quit_times = 0;
         }else{
 #ifdef __linux__
-            usleep(2000);
+            usleep(2*1000);
 #elif _WIN32
             Sleep(2);
 #endif
@@ -275,7 +275,7 @@ DWORD WINAPI videoWriteThread(void* arg){
 #endif
         }
         //if((exit_flag && g_image_queue.size() == 0) || quit_times >= 1000){//No bitstream exits after a delay of three seconds
-        if((exit_flag && threadPara->imageQueue->size() == 0) || quit_times >= 300){//No bitstream exits after a delay of three seconds
+        if((exit_flag && threadPara->imageQueue->size() == 0) || quit_times >= 60*500){//No bitstream exits after a delay of three seconds
             break;
         }
     }
@@ -485,6 +485,7 @@ int main(int argc, char* argv[])
             printf("current process is %f fps!\n", (i * 1000.0) / (float)time);
         }
     }
+    exit_flag = 1;
 
 #ifdef WIN32
     WaitForSingleObject(threadId, INFINITE);

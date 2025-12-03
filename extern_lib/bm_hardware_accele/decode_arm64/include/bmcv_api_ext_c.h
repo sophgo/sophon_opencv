@@ -905,6 +905,26 @@ DECL_EXPORT bm_status_t bmcv_image_warp_perspective_similar_to_opencv(
     bm_image *                        output,
     int                               use_bilinear);
 
+/*
+ * The interface realizes remapping transformation of image
+ * based on OpenCV remap operator:
+ * for each dst pixel (x, y), it looks up src coordinates
+ * (mapx[x,y], mapy[x,y]) and fetches the value with the
+ * specified interpolation.
+ * input                    is src image;
+ * output                   is dst image;
+ * mapx_data_global_addr    is device memory address for x-coordinate map (float32);
+ * mapy_data_global_addr    is device memory address for y-coordinate map (float32);
+ * interpolation_mode       is interpolation method: 0 - nearest; 1 - bilinear.
+ */
+DECL_EXPORT bm_status_t bmcv_image_remap(
+    bm_handle_t handle,
+    bm_image input,
+    bm_image output,
+    bm_device_mem_t mapx_data_global_addr,
+    bm_device_mem_t mapy_data_global_addr,
+    int interpolation_mode);
+
 /**
  * Image size changes, such as zoom in, zoom out, matting and other functions.
  * input_num is src num;resize_attr is resize parameter for each image
@@ -2447,6 +2467,31 @@ bm_status_t bmcv_cluster(bm_handle_t     handle,
                          int             num_spks,
                          int             weight_mode_KNN,
                          int             num_iter_KNN);
+
+DECL_EXPORT bm_status_t bmcv_knn2(
+        bm_handle_t handle,
+        bm_device_mem_t ref_data_addr,
+        bm_device_mem_t test_data_addr,
+        bm_device_mem_t distance_addr,
+        bm_device_mem_t indices_addr,
+        int n_test,
+        int n_ref,
+        int n_feat,
+        int k);
+
+DECL_EXPORT bm_status_t bmcv_knn_match(
+        bm_handle_t handle,
+        bm_device_mem_t ref_addr,
+        bm_device_mem_t test_addr,
+        bm_device_mem_t distance_addr,
+        bm_device_mem_t good_match_addr,
+        bm_device_mem_t match_index_addr,
+        int n_ref,
+        int n_ref_feat,
+        int n_test_feat,
+        int n_descriptor,
+        float ratio_thresh);
+
 
 DECL_EXPORT bm_status_t bmcv_matrix_log(
   bm_handle_t handle,

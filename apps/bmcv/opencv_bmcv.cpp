@@ -12,6 +12,42 @@
 using namespace cv;
 using namespace std;
 
+typedef void (*test_func_t)(int argc, const char** argv);
+
+typedef struct {
+  const char* name;
+  test_func_t test_func;
+  int valid_argc_count[4];
+  int valid_argc_len;
+} test_case_entry;
+
+static void test_conv_1(int argc, const char** argv);
+static void test_conv_4(int argc, const char** argv);
+static void test_size(int argc, const char** argv);
+static void test_video(int argc, const char** argv);
+static void test_image(int argc, const char** argv);
+static void test_cvt(int argc, const char** argv);
+static void test_bmcv2cv(int argc, const char** argv);
+static void test_bitwise_and(int argc, const char** argv);
+static void test_bitwise_or(int argc, const char** argv);
+static void test_bitwise_xor(int argc, const char** argv);
+
+static const test_case_entry test_case_table[] = {
+  {"conv_1", test_conv_1, {3,4}, 2},
+  {"conv_4", test_conv_4, {6,7}, 2},
+  {"size", test_size, {3,4}, 2},
+  {"video", test_video, {3,4}, 2},
+  {"image", test_image, {3,4}, 2},
+  {"cvt", test_cvt, {3,4}, 2},
+  {"bmcv2cv", test_bmcv2cv, {3,4}, 2},
+  {"bitwise_and", test_bitwise_and, {4,5}, 2},
+  {"bitwise_or", test_bitwise_or, {4,5}, 2},
+  {"bitwise_xor", test_bitwise_xor, {4,5}, 2},
+  // ...
+};
+
+#define TEST_CASE_COUNT (sizeof(test_case_table) / sizeof(test_case_table[0]))
+
 int g_device_id = 0;
 static int dump_data(const char *fn, Mat in, int yuv_enable)
 {
@@ -71,9 +107,9 @@ static int dump_data(const char *fn, Mat in, int yuv_enable)
   return 0;
 }
 
-static void test_conv_1(const char *f0)
+static void test_conv_1(int argc, const char** argv)
 {
-  Mat m0 = imread(f0, IMREAD_COLOR, g_device_id);
+  Mat m0 = imread(argv[2], IMREAD_COLOR, g_device_id);
   bmcv::print(m0);
 
   Mat sub(m0, Rect(16, 16, 128, 128));
@@ -91,12 +127,12 @@ static void test_conv_1(const char *f0)
   bm_image_destroy(image);
 }
 
-static void test_conv_4(const char *f0, const char *f1, const char *f2, const char *f3)
+static void test_conv_4(int argc, const char** argv)
 {
-  Mat m0 = imread(f0, IMREAD_COLOR, g_device_id);
-  Mat m1 = imread(f1, IMREAD_COLOR, g_device_id);
-  Mat m2 = imread(f2, IMREAD_COLOR, g_device_id);
-  Mat m3 = imread(f3, IMREAD_COLOR, g_device_id);
+  Mat m0 = imread(argv[2], IMREAD_COLOR, g_device_id);
+  Mat m1 = imread(argv[3], IMREAD_COLOR, g_device_id);
+  Mat m2 = imread(argv[4], IMREAD_COLOR, g_device_id);
+  Mat m3 = imread(argv[5], IMREAD_COLOR, g_device_id);
   bmcv::print(m0);
 
   bm_image image;
@@ -114,9 +150,9 @@ static void test_conv_4(const char *f0, const char *f1, const char *f2, const ch
   bm_image_destroy(image);
 }
 
-static void test_size(const char *f0)
+static void test_size(int argc, const char** argv)
 {
-  Mat m0 = imread(f0, IMREAD_COLOR, g_device_id);
+  Mat m0 = imread(argv[2], IMREAD_COLOR, g_device_id);
   bmcv::print(m0);
 
   Mat out(200, 200, CV_8UC3, SophonDevice(g_device_id));
@@ -126,9 +162,9 @@ static void test_size(const char *f0)
   imwrite("size_1_0.png", out);
 }
 
-static void test_video(const char *url)
+static void test_video(int argc, const char** argv)
 {
-  VideoCapture cap(url, cv::CAP_ANY, g_device_id);
+  VideoCapture cap(argv[2], cv::CAP_ANY, g_device_id);
   cap.set(cv::CAP_PROP_OUTPUT_YUV, PROP_TRUE);
 
   Mat frame;
@@ -158,9 +194,9 @@ static void test_video(const char *url)
   imwrite("video_1.png", out[1]);
 }
 
-static void test_image(const char *f0)
+static void test_image(int argc, const char** argv)
 {
-  Mat frame = imread(f0, IMREAD_AVFRAME, g_device_id);
+  Mat frame = imread(argv[2], IMREAD_AVFRAME, g_device_id);
   bmcv::print(frame);
 
   imwrite("image_0.jpg", frame);
@@ -176,9 +212,9 @@ static void test_image(const char *f0)
   imwrite("image_0.png", image);
 }
 
-static void test_cvt(const char *f0)
+static void test_cvt(int argc, const char** argv)
 {
-  Mat image = imread(f0, IMREAD_COLOR, g_device_id);
+  Mat image = imread(argv[2], IMREAD_COLOR, g_device_id);
   Mat gray(image.rows, image.cols, CV_8UC1, SophonDevice(g_device_id));
 
   cvtColor(image, gray, COLOR_BGR2GRAY);
@@ -274,7 +310,7 @@ static int bmimage_copyto_bmimage(bm_image in, bm_image out)
     return total_copy;
 }
 
-static void test_bmcv2cv(const char *f0)
+static void test_bmcv2cv(int argc, const char** argv)
 {
     bm_handle_t handle;
     string prefix;
@@ -289,7 +325,7 @@ static void test_bmcv2cv(const char *f0)
     // read input from picture
     size_t size = 0;
     unsigned char* jpeg_data = (unsigned char*)malloc(4096 * 4096 * 3);
-    read_file(f0, jpeg_data, &size);
+    read_file(argv[2], jpeg_data, &size);
 
     // create bm_image used to save output
     bm_image src[1];
@@ -390,32 +426,316 @@ start:
     return;
 }
 
+static void test_bitwise_and(int argc, const char** argv) {
+    bm_handle_t handle = NULL;
+    bm_status_t ret;
+    /*-----------------------test BGR:-----------------------*/
+    printf("test BGR:\n");
+    Mat frame0 = imread(argv[2], IMREAD_COLOR, g_device_id);
+    Mat frame1 = imread(argv[3], IMREAD_COLOR, g_device_id);
+    Mat output(frame0.size(), frame0.type());
+    bool update = true;
+    handle = frame0.u->hid ? frame0.u->hid : bmcv::getCard();
+    ret = bmcv::bitwise_and(frame0, frame1, output, update);
+    if (ret != BM_SUCCESS) {
+        printf("bitwise_and test BGR failed!\n");
+        exit(-1);
+    }
+    bmcv::downloadMat(output);
+    imwrite("bgr_bitwise_and.png", output);
+    bmcv::print(output);
+
+    Mat cv_output;
+    cv::bitwise_and(frame0, frame1, cv_output);
+    imwrite("cv_bgr_bitwise_and.png", cv_output);
+    bmcv::print(cv_output);
+
+    /*-----------------------test GRAY:-----------------------*/
+    frame0.release();
+    frame1.release();
+    output.release();
+    cv_output.release();
+    printf("test GRAY:\n");
+    frame0 = imread(argv[2], IMREAD_GRAYSCALE, g_device_id);
+    frame1 = imread(argv[3], IMREAD_GRAYSCALE, g_device_id);
+    ret = bmcv::bitwise_and(frame0, frame1, output, update);
+    if (ret != BM_SUCCESS) {
+        printf("bitwise_and test GRAY failed!\n");
+        exit(-1);
+    }
+    bmcv::downloadMat(output);
+    imwrite("gray_bitwise_and.png", output);
+    bmcv::print(output);
+
+    cv::bitwise_and(frame0, frame1, cv_output);
+    imwrite("cv_gray_bitwise_and.png", cv_output);
+    bmcv::print(cv_output);
+
+    /*-----------------------test NV12:-----------------------*/
+    frame0.release();
+    frame1.release();
+    output.release();
+    cv_output.release();
+    printf("test NV12:\n");
+    frame0 = imread(argv[2], IMREAD_AVFRAME, g_device_id);
+    frame1 = imread(argv[3], IMREAD_AVFRAME, g_device_id);
+
+    int p_plane_stride[3], plane_size[3];
+    int wscale[3], hscale[3];
+    int plane_num = av::get_scale_and_plane(AV_PIX_FMT_NV12 , wscale, hscale);
+    for (int i = 0; i < plane_num; i++) {
+        p_plane_stride[i] = frame0.avCols() / wscale[i];
+        plane_size[i] = p_plane_stride[i] * (frame0.avRows() / hscale[i]);
+    }
+    int id = bmcv::getId(handle);
+    AVFrame *f_0 = av::create(
+        frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+    Mat frame0_nv12;
+    frame0_nv12.create(f_0, id);
+    bmcv::convert(frame0, frame0_nv12);
+
+    AVFrame *f_1 = av::create(
+        frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+    Mat frame1_nv12;
+    frame1_nv12.create(f_1, id);
+    bmcv::convert(frame1, frame1_nv12);
+
+    ret = bmcv::bitwise_and(frame0_nv12, frame1_nv12, output, update);
+    if (ret != BM_SUCCESS) {
+        printf("bitwise_and test NV12 failed!\n");
+        exit(-1);
+    }
+    imwrite("nv12_bitwise_and.jpg", output);
+    bmcv::print(output);
+
+    return;
+}
+
+static void test_bitwise_or(int argc, const char** argv) {
+  bm_handle_t handle = NULL;
+  bm_status_t ret;
+  /*-----------------------test BGR:-----------------------*/
+  printf("test BGR:\n");
+  Mat frame0 = imread(argv[2], IMREAD_COLOR, g_device_id);
+  Mat frame1 = imread(argv[3], IMREAD_COLOR, g_device_id);
+  Mat output(frame0.size(), frame0.type());
+  bool update = true;
+  handle = frame0.u->hid ? frame0.u->hid : bmcv::getCard();
+  ret = bmcv::bitwise_or(frame0, frame1, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_or test BGR failed!\n");
+      exit(-1);
+  }
+  bmcv::downloadMat(output);
+  imwrite("bgr_bitwise_or.png", output);
+  bmcv::print(output);
+
+  Mat cv_output;
+  cv::bitwise_or(frame0, frame1, cv_output);
+  imwrite("cv_bgr_bitwise_or.png", cv_output);
+  bmcv::print(cv_output);
+
+  /*-----------------------test GRAY:-----------------------*/
+  frame0.release();
+  frame1.release();
+  output.release();
+  cv_output.release();
+  printf("test GRAY:\n");
+  frame0 = imread(argv[2], IMREAD_GRAYSCALE, g_device_id);
+  frame1 = imread(argv[3], IMREAD_GRAYSCALE, g_device_id);
+  ret = bmcv::bitwise_or(frame0, frame1, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_or test GRAY failed!\n");
+      exit(-1);
+  }
+  bmcv::downloadMat(output);
+  imwrite("gray_bitwise_or.png", output);
+  bmcv::print(output);
+
+  cv::bitwise_or(frame0, frame1, cv_output);
+  imwrite("cv_gray_bitwise_or.png", cv_output);
+  bmcv::print(cv_output);
+
+  /*-----------------------test NV12:-----------------------*/
+  frame0.release();
+  frame1.release();
+  output.release();
+  cv_output.release();
+  printf("test NV12:\n");
+  frame0 = imread(argv[2], IMREAD_AVFRAME, g_device_id);
+  frame1 = imread(argv[3], IMREAD_AVFRAME, g_device_id);
+
+  int p_plane_stride[3], plane_size[3];
+  int wscale[3], hscale[3];
+  int plane_num = av::get_scale_and_plane(AV_PIX_FMT_NV12 , wscale, hscale);
+  for (int i = 0; i < plane_num; i++) {
+      p_plane_stride[i] = frame0.avCols() / wscale[i];
+      plane_size[i] = p_plane_stride[i] * (frame0.avRows() / hscale[i]);
+  }
+  int id = bmcv::getId(handle);
+  AVFrame *f_0 = av::create(
+      frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+  Mat frame0_nv12;
+  frame0_nv12.create(f_0, id);
+  bmcv::convert(frame0, frame0_nv12);
+
+  AVFrame *f_1 = av::create(
+      frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+  Mat frame1_nv12;
+  frame1_nv12.create(f_1, id);
+  bmcv::convert(frame1, frame1_nv12);
+
+  ret = bmcv::bitwise_or(frame0_nv12, frame1_nv12, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_or test NV12 failed!\n");
+      exit(-1);
+  }
+  imwrite("nv12_bitwise_or.jpg", output);
+  bmcv::print(output);
+
+  return;
+}
+
+static void test_bitwise_xor(int argc, const char** argv) {
+  bm_handle_t handle = NULL;
+  bm_status_t ret;
+  /*-----------------------test BGR:-----------------------*/
+  printf("test BGR:\n");
+  Mat frame0 = imread(argv[2], IMREAD_COLOR, g_device_id);
+  Mat frame1 = imread(argv[3], IMREAD_COLOR, g_device_id);
+  Mat output(frame0.size(), frame0.type());
+  bool update = true;
+  handle = frame0.u->hid ? frame0.u->hid : bmcv::getCard();
+  ret = bmcv::bitwise_xor(frame0, frame1, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_xor test BGR failed!\n");
+      exit(-1);
+  }
+  bmcv::downloadMat(output);
+  imwrite("bgr_bitwise_xor.png", output);
+  bmcv::print(output);
+
+  Mat cv_output;
+  cv::bitwise_xor(frame0, frame1, cv_output);
+  imwrite("cv_bgr_bitwise_xor.png", cv_output);
+  bmcv::print(cv_output);
+
+  /*-----------------------test GRAY:-----------------------*/
+  frame0.release();
+  frame1.release();
+  output.release();
+  cv_output.release();
+  printf("test GRAY:\n");
+  frame0 = imread(argv[2], IMREAD_GRAYSCALE, g_device_id);
+  frame1 = imread(argv[3], IMREAD_GRAYSCALE, g_device_id);
+  ret = bmcv::bitwise_xor(frame0, frame1, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_xor test GRAY failed!\n");
+      exit(-1);
+  }
+  bmcv::downloadMat(output);
+  imwrite("gray_bitwise_xor.png", output);
+  bmcv::print(output);
+
+  cv::bitwise_xor(frame0, frame1, cv_output);
+  imwrite("cv_gray_bitwise_xor.png", cv_output);
+  bmcv::print(cv_output);
+
+  /*-----------------------test NV12:-----------------------*/
+  frame0.release();
+  frame1.release();
+  output.release();
+  cv_output.release();
+  printf("test NV12:\n");
+  frame0 = imread(argv[2], IMREAD_AVFRAME, g_device_id);
+  frame1 = imread(argv[3], IMREAD_AVFRAME, g_device_id);
+
+  int p_plane_stride[3], plane_size[3];
+  int wscale[3], hscale[3];
+  int plane_num = av::get_scale_and_plane(AV_PIX_FMT_NV12 , wscale, hscale);
+  for (int i = 0; i < plane_num; i++) {
+      p_plane_stride[i] = frame0.avCols() / wscale[i];
+      plane_size[i] = p_plane_stride[i] * (frame0.avRows() / hscale[i]);
+  }
+  int id = bmcv::getId(handle);
+  AVFrame *f_0 = av::create(
+      frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+  Mat frame0_nv12;
+  frame0_nv12.create(f_0, id);
+  bmcv::convert(frame0, frame0_nv12);
+
+  AVFrame *f_1 = av::create(
+      frame0.rows, frame0.cols, AV_PIX_FMT_NV12, nullptr, 0, -1, p_plane_stride, plane_size);
+  Mat frame1_nv12;
+  frame1_nv12.create(f_1, id);
+  bmcv::convert(frame1, frame1_nv12);
+
+  ret = bmcv::bitwise_xor(frame0_nv12, frame1_nv12, output, update);
+  if (ret != BM_SUCCESS) {
+      printf("bitwise_xor test NV12 failed!\n");
+      exit(-1);
+  }
+  imwrite("nv12_bitwise_xor.jpg", output);
+  bmcv::print(output);
+
+  return;
+}
+
+void print_usage(const char* prog) {
+  printf("USAGE:\n");
+  printf("    %s conv_1 <image1> [device_id]\n", prog);
+  printf("    %s conv_4 <image1> <image2> <image3> <image4> [device_id]\n", prog);
+  printf("    %s size <image> [device_id]\n", prog);
+  printf("    %s video <rtsp_url> [device_id]\n", prog);
+  printf("    %s image <jpeg_file> [device_id]\n", prog);
+  printf("    %s cvt <jpeg_file> [device_id]\n", prog);
+  printf("    %s bmcv2cv <jpeg_file> [device_id]\n", prog);
+  printf("    %s bitwise_and <jpeg1> <jpeg2> [device_id]\n", prog);
+  printf("    %s bitwise_or <jpeg1> <jpeg2> [device_id]\n", prog);
+}
+
+static const test_case_entry* parse_args(const char *arg) {
+  for (size_t i = 0; i < TEST_CASE_COUNT; ++i) {
+      if (strcmp(arg, test_case_table[i].name) == 0) {
+          return &test_case_table[i];
+      }
+  }
+  printf("Invalid test case: %s\n", arg);
+  return NULL;
+}
+
+static bool check_argc(int argc, const int* valid_counts, int count_len) {
+  for (int i = 0; i < count_len; i++) {
+      if (argc == valid_counts[i]) {
+          return true;
+      }
+  }
+  return false;
+}
+
+static void parse_device_id(int argc, const char **argv) {
+    g_device_id = atoi(argv[argc - 1]);
+    printf("bm_device %d used.\n", g_device_id);
+}
+
 int main(int argc, const char** argv)
 {
-  if (argc != 3 && argc != 6 && argc != 4 && argc != 7) {
-    printf("USAGE: %s <conv|size> <image file 1> [device_id]\n", argv[0]);
-    printf("       %s <conv> <image file 1> <image file 2> <image file 3> <image file 4> [device_id]\n", argv[0]);
-    printf("       %s <video> <rtsp url> [device_id]\n", argv[0]);
-    printf("       %s <image> <jpeg file> [device_id]\n", argv[0]);
-    printf("       %s <cvt> <jpeg file> [device_id]\n", argv[0]);
-    printf("       %s <bmcv2cv> <jpeg file> [device_id]\n", argv[0]);
-    return -1;
+    if (argc < 3) {
+        printf("Invalid input!\n");
+        print_usage(argv[0]);
+        return -1;
+    }
+
+    const test_case_entry* tc_entry = parse_args(argv[1]);
+    if (!tc_entry) {
+        print_usage(argv[0]);
+        return -1;
+    }
+
+    if (!check_argc(argc, tc_entry->valid_argc_count, tc_entry->valid_argc_len)) {
+      print_usage(argv[0]);
+      return -1;
   }
-
-  if (argc == 4 || argc == 7) g_device_id = atoi(argv[argc-1]);
-  printf("bm_device %d used.\n", g_device_id);
-
-  if (argc < 5) {
-    if (strcmp(argv[1], "conv") == 0) test_conv_1(argv[2]);
-
-    if (strcmp(argv[1], "size") == 0) test_size(argv[2]);
-    if (strcmp(argv[1], "video") == 0) test_video(argv[2]);
-    if (strcmp(argv[1], "image") == 0) test_image(argv[2]);
-    if (strcmp(argv[1], "cvt") == 0) test_cvt(argv[2]);
-    if (strcmp(argv[1], "bmcv2cv") == 0) test_bmcv2cv(argv[2]);
-  } else {
-    if (strcmp(argv[1], "conv") == 0) test_conv_4(argv[2], argv[3], argv[4], argv[5]);
-  }
-
-  return 0;
+  parse_device_id(argc, argv);
+  tc_entry->test_func(argc, argv);
 }
