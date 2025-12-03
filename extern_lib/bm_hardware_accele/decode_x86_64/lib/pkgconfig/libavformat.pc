@@ -5,9 +5,9 @@ includedir=/usr/local/include
 
 Name: libavformat
 Description: FFmpeg container format library
-Version: 58.20.100-sophon-0.13.0
+Version: 58.20.100-sophon-0.14.0
 Requires: 
-Requires.private: libavcodec >= 58.35.100-sophon-0.13.0, libswresample >= 3.3.100-sophon-0.13.0, libavutil >= 56.22.100-sophon-0.13.0
+Requires.private: libavcodec >= 58.35.100-sophon-0.14.0, libswresample >= 3.3.100-sophon-0.14.0, libavutil >= 56.22.100-sophon-0.14.0
 Conflicts:
 Libs: -L${libdir}  -lavformat 
 Libs.private: -lm -L../prebuilt/x86_64/lib -lz -lssl -lcrypto

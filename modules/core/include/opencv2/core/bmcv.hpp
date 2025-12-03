@@ -60,6 +60,9 @@ CV_EXPORTS bm_status_t hwCrop(InputArray _src, Rect rect , OutputArray _dst);
 CV_EXPORTS bm_status_t hwMultiCrop(InputArray _src, std::vector<Rect>& loca, std::vector<Mat>& dst_vector);
 CV_EXPORTS bm_status_t hwSobel(InputArray _src, OutputArray _dst, int dx, int dy, int ksize, double scale, double delta);
 CV_EXPORTS bm_status_t hwGaussianBlur(InputArray _src, OutputArray _dst, int kw, int kh, double sigma1, double sigma2);
+CV_EXPORTS bm_status_t bitwise_and(InputArray src1, InputArray src2, OutputArray dst, bool update = true);
+CV_EXPORTS bm_status_t bitwise_or(InputArray src1, InputArray src2, OutputArray dst, bool update = true);
+CV_EXPORTS bm_status_t bitwise_xor(InputArray src1, InputArray src2, OutputArray dst, bool update = true);
 
 CV_EXPORTS void print(Mat &m, bool dump = false);
 CV_EXPORTS void print(bm_image *image, bool dump = false);

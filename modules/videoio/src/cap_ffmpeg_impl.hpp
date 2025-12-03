@@ -1368,6 +1368,10 @@ public:
     ~InternalFFMpegRegister()
     {
         _initialized = false;
+    #if LIBAVFORMAT_BUILD >= CALC_FFMPEG_VERSION(53, 13, 0)
+        avformat_network_deinit();
+    #endif
+
     #if LIBAVCODEC_BUILD < CALC_FFMPEG_VERSION(58, 9, 100)
         av_lockmgr_register(NULL);
     #endif
@@ -1891,9 +1895,9 @@ bool CvCapture_FFMPEG::retrieveFrame(int, cv::OutputArray image)
         !is_bm_image_codec(video_st->codec->codec_id))
         return retrieveFrameSoft(0, image);
 
-    if ((out_yuv > 0) && ((picture->data == NULL) || (picture->data[4] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+    if ((out_yuv > 0) && ((picture->data[4] == NULL) || (picture->buf[0] == NULL))) {
         return false;
-    } else if ((out_yuv == 0) && ((picture->data == NULL) || (picture->data[0] == NULL) || (picture->buf == NULL) || (picture->buf[0] == NULL))) {
+    } else if ((out_yuv == 0) && ((picture->data[0] == NULL) || (picture->buf[0] == NULL))) {
         return false;
     }
 
@@ -4436,6 +4440,10 @@ void InputMediaStream_FFMPEG::close()
         av_close_input_file(ctx_);
 #endif
     }
+
+    #if LIBAVFORMAT_BUILD >= CALC_FFMPEG_VERSION(53, 13, 0)
+        avformat_network_deinit();
+    #endif
 
     // free last packet if exist
     if (pkt_.data)
